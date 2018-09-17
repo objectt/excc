@@ -23,6 +23,12 @@
         "heartbeat_check": false
     },
     "cli": "tcp@127.0.0.1:7317",
+    "db_sys": {
+        "host": "localhost",
+        "user": "trader",
+        "pass": "eXch@nge0213",
+        "name": "exchange"
+    },
     "db_log": {
         "host": "localhost",
         "user": "user",
