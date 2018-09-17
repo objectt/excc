@@ -73,6 +73,7 @@ struct settings {
     cli_svr_cfg         cli;
     mysql_cfg           db_log;
     mysql_cfg           db_history;
+    mysql_cfg           db_sys;
 
     size_t              asset_num;
     struct asset        *assets;

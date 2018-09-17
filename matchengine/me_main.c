@@ -87,15 +87,15 @@ int main(int argc, char *argv[])
     if (ret < 0) {
         error(EXIT_FAILURE, errno, "init log fail: %d", ret);
     }
-    ret = init_balance();
+    ret = init_balance(); // dict_asset
     if (ret < 0) {
         error(EXIT_FAILURE, errno, "init balance fail: %d", ret);
     }
-    ret = init_update();
+    ret = init_update(); // dict_update
     if (ret < 0) {
         error(EXIT_FAILURE, errno, "init update fail: %d", ret);
     }
-    ret = init_trade();
+    ret = init_trade(); // dict_market
     if (ret < 0) {
         error(EXIT_FAILURE, errno, "init trade fail: %d", ret);
     }

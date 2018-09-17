@@ -7,6 +7,7 @@
 
 struct settings settings;
 
+#if 0
 static int load_assets(json_t *root, const char *key)
 {
     json_t *node = json_object_get(root, key);
@@ -29,7 +30,73 @@ static int load_assets(json_t *root, const char *key)
 
     return 0;
 }
+#endif
 
+// Load assets config from database
+static int load_assets_from_db(MYSQL *conn)
+{
+    sds sql = sdsnew("SELECT name, prec_save, prec_show FROM assets WHERE assets.is_listed = 1");
+    log_trace("exec sql: %s", sql);
+    int ret = mysql_real_query(conn, sql, sdslen(sql));
+    if (ret != 0) {
+        log_error("exec sql: %s fail: %d %s", sql, mysql_errno(conn), mysql_error(conn));
+        sdsfree(sql);
+        return -1;
+    }
+    sdsfree(sql);
+
+    MYSQL_RES *result = mysql_store_result(conn);
+    settings.asset_num = mysql_num_rows(result);
+    settings.assets = malloc(sizeof(struct asset) * settings.asset_num);
+    for (size_t i = 0; i < settings.asset_num; ++i) {
+        MYSQL_ROW row = mysql_fetch_row(result);
+
+        settings.assets[i].name = strdup(row[0]);
+        settings.assets[i].prec_save = strtoul(row[1], NULL, 0);
+        settings.assets[i].prec_show = strtoul(row[2], NULL, 0);
+    }
+    mysql_free_result(result);
+
+    return 0;
+}
+
+// Load market config from database
+static int load_market_from_db(MYSQL *conn)
+{
+    sds sql = sdsnew("SELECT A1.name, A1.prec_show AS stock_prec, M.min_amount, "
+                     "A2.name AS currency_name, A2.prec_show AS currency_prec, M.fee_prec "
+                     "FROM market M, assets A1, assets A2 "
+                     "WHERE M.stock = A1.id AND M.currency = A2.id AND M.is_open = 1;");
+    log_trace("exec sql: %s", sql);
+    int ret = mysql_real_query(conn, sql, sdslen(sql));
+    if (ret != 0) {
+        log_error("exec sql: %s fail: %d %s", sql, mysql_errno(conn), mysql_error(conn));
+        sdsfree(sql);
+        return -1;
+    }
+    sdsfree(sql);
+
+    MYSQL_RES *result = mysql_store_result(conn);
+    settings.market_num = mysql_num_rows(result);
+    settings.markets = malloc(sizeof(struct market) * settings.market_num);
+    for (size_t i = 0; i < settings.market_num; ++i) {
+        MYSQL_ROW row = mysql_fetch_row(result);
+
+        settings.markets[i].name = strdup(row[0]);
+        settings.markets[i].fee_prec = strtoul(row[5], NULL, 0);
+        settings.markets[i].min_amount = decimal(row[2], 0);
+
+        settings.markets[i].stock = strdup(row[0]);
+        settings.markets[i].stock_prec = strtoul(row[1], NULL, 0);
+        settings.markets[i].money = strdup(row[3]);
+        settings.markets[i].money_prec = strtoul(row[4], NULL, 0);
+    }
+    mysql_free_result(result);
+
+    return 0;
+}
+
+#if 0
 static int load_markets(json_t *root, const char *key)
 {
     json_t *node = json_object_get(root, key);
@@ -62,6 +129,7 @@ static int load_markets(json_t *root, const char *key)
 
     return 0;
 }
+#endif
 
 static int read_config_from_json(json_t *root)
 {
@@ -96,6 +164,11 @@ static int read_config_from_json(json_t *root)
         printf("load cli config fail: %d\n", ret);
         return -__LINE__;
     }
+    ret = load_cfg_mysql(root, "db_sys", &settings.db_sys);
+    if (ret < 0) {
+        printf("load log db config fail: %d\n", ret);
+        return -__LINE__;
+    }
     ret = load_cfg_mysql(root, "db_log", &settings.db_log);
     if (ret < 0) {
         printf("load log db config fail: %d\n", ret);
@@ -106,6 +179,8 @@ static int read_config_from_json(json_t *root)
         printf("load history db config fail: %d\n", ret);
         return -__LINE__;
     }
+
+#if 0
     ret = load_assets(root, "assets");
     if (ret < 0) {
         printf("load assets config fail: %d\n", ret);
@@ -116,6 +191,8 @@ static int read_config_from_json(json_t *root)
         printf("load markets config fail: %d\n", ret);
         return -__LINE__;
     }
+#endif
+
     ret = read_cfg_str(root, "brokers", &settings.brokers, NULL);
     if (ret < 0) {
         printf("load brokers fail: %d\n", ret);
@@ -161,6 +238,10 @@ int init_config(const char *path)
         return ret;
     }
     json_decref(root);
+
+    MYSQL *conn = mysql_connect(&settings.db_sys);
+    ret = load_assets_from_db(conn);
+    ret = load_market_from_db(conn);
 
     return 0;
 }
