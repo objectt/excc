@@ -96,3 +96,30 @@ Example response: `{"code": 0, "message": null, "data": {"user_id": 1}}`
 ## Donation
 
 * BTC: 1AGSvvYDAq7hWHHcUBvcrNr7L4Yt5ziLUH
+
+## Building Exchange
+
+**Libraries**
+Run './configure', 'make', 'sudo make install'
+1. Jansson
+2. libhiredis
+3. librdkafka
+4. libcurl
+
+**Stores**
+1. MySQL
+2. Kafka
+3. Redis
+
+**Utils**
+Run 'make' and copy *.a files to libs folder
+1. network
+2. utils
+
+**Modules**
+Build/Run modules in the following order
+1. alertcenter
+2. accesshttp
+3. readhistory
+4. matchengine
+5. marketprice
