@@ -138,16 +138,26 @@ static int add_cache(sds cache_key, json_t *result)
 static int on_cmd_balance_query(nw_ses *ses, rpc_pkg *pkg, json_t *params)
 {
     size_t request_size = json_array_size(params);
-    if (request_size == 0)
+    if (request_size < 2)
         return reply_error_invalid_argument(ses, pkg);
 
+    // User ID
     if (!json_is_integer(json_array_get(params, 0)))
         return reply_error_invalid_argument(ses, pkg);
     uint32_t user_id = json_integer_value(json_array_get(params, 0));
     if (user_id == 0)
         return reply_error_invalid_argument(ses, pkg);
 
+    // Option
+    if (!json_is_integer(json_array_get(params, 1)))
+        return reply_error_invalid_argument(ses, pkg);
+    uint32_t detail = json_integer_value(json_array_get(params, 1));
+    if (detail != 1 || detail != 2)
+        return reply_error_invalid_argument(ses, pkg);
+
     json_t *result = json_object();
+
+    // Assets - Show All
     if (request_size == 1) {
         for (size_t i = 0; i < settings.asset_num; ++i) {
             const char *asset = settings.assets[i].name;
@@ -183,9 +193,43 @@ static int on_cmd_balance_query(nw_ses *ses, rpc_pkg *pkg, json_t *params)
                 json_object_set_new(unit, "freeze", json_string("0"));
             }
 
+            // Detailed report - Total value
+            if (detail) {
+                mpd_t *total = mpd_new(&mpd_ctx);
+                mpd_add(total, available, freeze, &mpd_ctx);
+                json_object_set_new_mpd(unit, "total", total);  // Total amount
+
+                mpd_t *value = mpd_new(&mpd_ctx);
+                mpd_t *last_price = get_market_last_price(asset); // From MP Redis (max 10s delay)
+                mpd_mul(value, total, last_price, &mpd_ctx);
+                json_object_set_new_mpd(unit, "value", value); // Value in currency
+
+                json_object_set_new(unit, "blended", json_string("0"));
+                json_object_set_new(unit, "purchased", json_string("0"));
+            }
+
             json_object_set_new(result, asset, unit);
         }
+
+        // Detailed report from database
+        if (detail) {
+            size_t index;
+            json_t *value;
+            json_t *wallet = get_user_balance_wallet(user_id);
+
+            json_array_foreach(wallet, index, value) {
+                const char *w_asset = json_string_value(json_object_get(value, "asset"));
+                json_t *node = json_object_get(result, w_asset);
+
+                if (node == NULL)
+                    continue;
+
+                json_object_set(node, "blended", json_object_get(value, "blended")); // Average
+                json_object_set(node, "purchased", json_object_get(value, "purchased")); // Purchased
+            }
+        }
     } else {
+    // Assets - Show requested assets only
         for (size_t i = 1; i < request_size; ++i) {
             const char *asset = json_string_value(json_array_get(params, i));
             if (!asset || !asset_exist(asset)) {

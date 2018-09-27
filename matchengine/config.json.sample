@@ -5,7 +5,7 @@
         "core_limit": 1000000000
     },
     "log": {
-        "path": "/var/log/trade/matchengine",
+        "path": "/var/log/matchengine.log",
         "flag": "fatal,error,warn,info,debug,trace",
         "num": 10
     },
@@ -41,121 +41,13 @@
         "pass": "pass",
         "name": "trade_history"
     },
-    "assets": [
-        {
-            "name": "BCH",
-            "prec_save": 20,
-            "prec_show": 8
-        }, {
-            "name": "BTC",
-            "prec_save": 12,
-            "prec_show": 8
-        }, {
-            "name": "LTC",
-            "prec_save": 12,
-            "prec_show": 8
-        }, {
-            "name": "ETH",
-            "prec_save": 12,
-            "prec_show": 8
-        }, {
-            "name": "ETC",
-            "prec_save": 12,
-            "prec_show": 8
-        }, {
-            "name": "ZEC",
-            "prec_save": 12,
-            "prec_show": 8
-        }, {
-            "name": "XMR",
-            "prec_save": 12,
-            "prec_show": 8
-        }, {
-            "name": "DSH",
-            "prec_save": 12,
-            "prec_show": 8
-        }
-    ],
-    "markets": [
-        {
-            "name": "BTCBCH",
-            "stock": {
-                "name": "BTC",
-                "prec": 8
-            },
-            "money": {
-                "name": "BCH",
-                "prec": 8
-            },
-            "min_amount": "0.001"
-        }, {
-            "name": "LTCBCH",
-            "stock": {
-                "name": "LTC",
-                "prec": 8
-            },
-            "money": {
-                "name": "BCH",
-                "prec": 8
-            },
-            "min_amount": "0.001"
-        }, {
-            "name": "ETHBCH",
-            "stock": {
-                "name": "ETH",
-                "prec": 8
-            },
-            "money": {
-                "name": "BCH",
-                "prec": 8
-            },
-            "min_amount": "0.001"
-        }, {
-            "name": "ETCBCH",
-            "stock": {
-                "name": "ETC",
-                "prec": 8
-            },
-            "money": {
-                "name": "BCH",
-                "prec": 8
-            },
-            "min_amount": "0.001"
-        }, {
-            "name": "ZECBCH",
-            "stock": {
-                "name": "ZEC",
-                "prec": 8
-            },
-            "money": {
-                "name": "BCH",
-                "prec": 8
-            },
-            "min_amount": "0.001"
-        }, {
-            "name": "XMRBCH",
-            "stock": {
-                "name": "XMR",
-                "prec": 8
-            },
-            "money": {
-                "name": "BCH",
-                "prec": 8
-            },
-            "min_amount": "0.001"
-        }, {
-            "name": "DSHBCH",
-            "stock": {
-                "name": "DSH",
-                "prec": 8
-            },
-            "money": {
-                "name": "BCH",
-                "prec": 8
-            },
-            "min_amount": "0.001"
-        }
-    ],
+    "redis_mp": {
+        "addr": [
+            "127.0.0.1:26381",
+            "127.0.0.1:26382",
+            "127.0.0.1:26383"
+        ]
+    },
     "brokers": "127.0.0.1:9092",
     "slice_interval": 3600,
     "slice_keeptime": 259200 

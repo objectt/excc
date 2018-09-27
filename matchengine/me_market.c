@@ -1038,3 +1038,20 @@ sds market_status(sds reply)
     return reply;
 }
 
+mpd_t *get_market_last_price(const char *market)
+{
+    redisContext *context = redis_sentinel_connect_master(redis);
+    redisReply *reply = redisCmd(context, "GET k:%s:last", market);
+    if (reply == NULL) {
+        return mpd_zero;
+    }
+
+    mpd_t *last;
+    mpd_copy(last, mpd_zero, &mpd_ctx);
+    if (reply->type == REDIS_REPLY_STRING) {
+        last = decimal(reply->str, 0);
+    }
+    freeReplyObject(reply);
+
+    return last;
+}

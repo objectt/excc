@@ -5,7 +5,7 @@
         "core_limit": 1000000000
     },
     "log": {
-        "path": "/var/log/trade/marketprice",
+        "path": "/var/log/marketprice.log",
         "flag": "fatal,error,warn,info,debug,trace",
         "num": 10
     },
@@ -28,7 +28,6 @@
         "partition": 0
     },
     "redis": {
-        "name": "mymaster",
         "addr": [
             "127.0.0.1:26381",
             "127.0.0.1:26382",

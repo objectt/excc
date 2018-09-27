@@ -63,5 +63,7 @@ skiplist_t *market_get_order_list(market_t *m, uint32_t user_id);
 
 sds market_status(sds reply);
 
+mpd_t *get_market_last_price(const char *market);
+
 # endif
 

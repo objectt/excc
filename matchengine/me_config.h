@@ -49,6 +49,7 @@
 # define MAX_PENDING_MESSAGE    1000
 
 struct asset {
+    int                 id;
     char                *name;
     int                 prec_save;
     int                 prec_show;
@@ -74,6 +75,7 @@ struct settings {
     mysql_cfg           db_log;
     mysql_cfg           db_history;
     mysql_cfg           db_sys;
+    redis_sentinel_cfg  redis_mp;
 
     size_t              asset_num;
     struct asset        *assets;
@@ -91,6 +93,8 @@ struct settings {
 extern struct settings settings;
 
 int init_config(const char *path);
+
+redis_sentinel_t *redis;
 
 # endif
 

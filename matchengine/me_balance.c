@@ -362,3 +362,33 @@ int balance_status(const char *asset, mpd_t *total, size_t *available_count, mpd
     return 0;
 }
 
+json_t *get_user_balance_wallet(uint32_t user_id)
+{
+    MYSQL *conn = mysql_connect(&settings.db_sys);
+    sds sql = sdsnew("SELECT A.name, W.blended, W.purchased FROM assets A, wallet W "
+                     "WHERE A.id = W.asset_id AND W.user_id = ");
+    sql = sdscatprintf(sql, "%u", user_id);
+
+    int ret = mysql_real_query(conn, sql, sdslen(sql));
+    if (ret != 0) {
+        log_error("exec sql: %s fail: %d %s", sql, mysql_errno(conn), mysql_error(conn));
+        sdsfree(sql);
+        return json_null();
+    }
+    sdsfree(sql);
+
+    MYSQL_RES *result = mysql_store_result(conn);
+    size_t num_rows = mysql_num_rows(result);
+    json_t *records = json_array();
+    for (size_t i = 0; i < num_rows; ++i) {
+        MYSQL_ROW row = mysql_fetch_row(result);
+        json_t *record = json_object();
+        json_object_set_new(record, "asset", json_string(rstripzero(row[0])));
+        json_object_set_new(record, "blended", json_string(rstripzero(row[1])));
+        json_object_set_new(record, "purchased", json_string(rstripzero(row[2])));
+        json_array_append_new(records, record);
+    }
+    mysql_free_result(result);
+
+    return records;
+}

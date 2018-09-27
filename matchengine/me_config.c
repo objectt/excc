@@ -7,35 +7,10 @@
 
 struct settings settings;
 
-#if 0
-static int load_assets(json_t *root, const char *key)
-{
-    json_t *node = json_object_get(root, key);
-    if (!node || !json_is_array(node)) {
-        return -__LINE__;
-    }
-
-    settings.asset_num = json_array_size(node);
-    settings.assets = malloc(sizeof(struct asset) * settings.asset_num);
-    for (size_t i = 0; i < settings.asset_num; ++i) {
-        json_t *row = json_array_get(node, i);
-        if (!json_is_object(row))
-            return -__LINE__;
-        ERR_RET_LN(read_cfg_str(row, "name", &settings.assets[i].name, NULL));
-        ERR_RET_LN(read_cfg_int(row, "prec_save", &settings.assets[i].prec_save, true, 0));
-        ERR_RET_LN(read_cfg_int(row, "prec_show", &settings.assets[i].prec_show, false, settings.assets[i].prec_save));
-        if (strlen(settings.assets[i].name) > ASSET_NAME_MAX_LEN)
-            return -__LINE__;
-    }
-
-    return 0;
-}
-#endif
-
 // Load assets config from database
 static int load_assets_from_db(MYSQL *conn)
 {
-    sds sql = sdsnew("SELECT name, prec_save, prec_show FROM assets WHERE assets.is_listed = 1");
+    sds sql = sdsnew("SELECT id, name, prec_save, prec_show FROM assets");
     log_trace("exec sql: %s", sql);
     int ret = mysql_real_query(conn, sql, sdslen(sql));
     if (ret != 0) {
@@ -51,9 +26,10 @@ static int load_assets_from_db(MYSQL *conn)
     for (size_t i = 0; i < settings.asset_num; ++i) {
         MYSQL_ROW row = mysql_fetch_row(result);
 
-        settings.assets[i].name = strdup(row[0]);
-        settings.assets[i].prec_save = strtoul(row[1], NULL, 0);
-        settings.assets[i].prec_show = strtoul(row[2], NULL, 0);
+        settings.assets[i].id = strtoul(row[0], NULL, 0);
+        settings.assets[i].name = strdup(row[1]);
+        settings.assets[i].prec_save = strtoul(row[2], NULL, 0);
+        settings.assets[i].prec_show = strtoul(row[3], NULL, 0);
     }
     mysql_free_result(result);
 
@@ -179,6 +155,11 @@ static int read_config_from_json(json_t *root)
         printf("load history db config fail: %d\n", ret);
         return -__LINE__;
     }
+    ret = load_cfg_redis_sentinel(root, "redis_mp", &settings.redis_mp);
+    if (ret < 0) {
+        printf("load redis config fail: %d\n", ret);
+        return -__LINE__;
+    }
 
 #if 0
     ret = load_assets(root, "assets");
@@ -242,6 +223,8 @@ int init_config(const char *path)
     MYSQL *conn = mysql_connect(&settings.db_sys);
     ret = load_assets_from_db(conn);
     ret = load_market_from_db(conn);
+
+    redis = redis_sentinel_create(&settings.redis_mp);
 
     return 0;
 }
