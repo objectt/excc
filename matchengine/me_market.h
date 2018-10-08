@@ -65,5 +65,7 @@ sds market_status(sds reply);
 
 mpd_t *get_market_last_price(const char *market);
 
+int init_redis(void);
+
 # endif
 

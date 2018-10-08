@@ -12,6 +12,8 @@
 uint64_t order_id_start;
 uint64_t deals_id_start;
 
+static redis_sentinel_t *redis;
+
 struct dict_user_key {
     uint32_t    user_id;
 };
@@ -523,6 +525,13 @@ static int execute_limit_bid_order(bool real, market_t *m, order_t *taker)
             }
         }
 
+        // Update takers blended / purchased
+        if (real) {
+            int asset_id = asset_idx(m->stock);
+            update_user_balance_wallet(taker->user_id, asset_id, price, amount);
+            log_debug("update user wallet balance %u %u", taker->user_id, asset_id);
+        }
+
         mpd_sub(maker->left, maker->left, amount, &mpd_ctx);
         mpd_sub(maker->freeze, maker->freeze, amount, &mpd_ctx);
         mpd_add(maker->deal_stock, maker->deal_stock, amount, &mpd_ctx);
@@ -544,6 +553,7 @@ static int execute_limit_bid_order(bool real, market_t *m, order_t *taker)
             }
         }
 
+        // Finished order (sell)
         if (mpd_cmp(maker->left, mpd_zero, &mpd_ctx) == 0) {
             if (real) {
                 push_order_message(ORDER_EVENT_FINISH, maker, m);
@@ -1046,12 +1056,23 @@ mpd_t *get_market_last_price(const char *market)
         return mpd_zero;
     }
 
-    mpd_t *last;
-    mpd_copy(last, mpd_zero, &mpd_ctx);
+    mpd_t *last = mpd_qncopy(mpd_zero);
     if (reply->type == REDIS_REPLY_STRING) {
         last = decimal(reply->str, 0);
+        if (last == NULL) {
+            mpd_copy(last, mpd_zero, &mpd_ctx);
+        }
     }
     freeReplyObject(reply);
 
     return last;
+}
+
+int init_redis(void)
+{
+    log_debug("init_redis");
+    redis = redis_sentinel_create(&settings.redis_mp);
+    if (redis == NULL)
+        return -__LINE__;
+    return 0;
 }

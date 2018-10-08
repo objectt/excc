@@ -105,6 +105,7 @@ int update_user_balance(bool real, uint32_t user_id, const char *asset, const ch
         return -1;
     }
 
+    bool is_deposit = true;
     mpd_t *result;
     mpd_t *abs_change = mpd_new(&mpd_ctx);
     mpd_abs(abs_change, change, &mpd_ctx);
@@ -112,6 +113,7 @@ int update_user_balance(bool real, uint32_t user_id, const char *asset, const ch
         result = balance_add(user_id, BALANCE_TYPE_AVAILABLE, asset, abs_change);
     } else {
         result = balance_sub(user_id, BALANCE_TYPE_AVAILABLE, asset, abs_change);
+        is_deposit = false;
     }
     mpd_del(abs_change);
     if (result == NULL)
@@ -122,6 +124,21 @@ int update_user_balance(bool real, uint32_t user_id, const char *asset, const ch
 
     if (real) {
         double now = current_timestamp();
+
+        // Subscription price
+        json_t *price = json_object_get(detail, "price");
+        if (price != NULL && is_deposit) {
+            mpd_t *_price = decimal(json_string_value(price), 0);
+
+            if (_price == NULL)
+                return -__LINE__;
+
+            int asset_id = asset_idx(asset);
+            update_user_balance_wallet(user_id, asset_id, _price, change);
+            mpd_del(_price);
+            log_debug("update user wallet balance %u %u", user_id, asset_id);
+        }
+
         json_object_set_new(detail, "id", json_integer(business_id));
         char *detail_str = json_dumps(detail, 0);
         append_user_balance_history(now, user_id, asset, business, change, detail_str);

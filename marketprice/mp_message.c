@@ -351,19 +351,23 @@ static int init_market(void)
     if (dict_market == NULL)
         return -__LINE__;
 
-    redisContext *context = redis_sentinel_connect_master(redis);
-    if (context == NULL)
-        return -__LINE__;
-    json_t *r = send_market_list_req();
+    json_t *r = send_market_list_req(); // market list from MatchEngine
     if (r == NULL) {
         log_error("get market list fail");
-        redisFree(context);
         return -__LINE__;
     }
+
+    redisContext *context = redis_sentinel_connect_master(redis);
+    if (context == NULL) {
+        log_error("redis connection failed");
+        return -__LINE__;
+    }
+
     for (size_t i = 0; i < json_array_size(r); ++i) {
         json_t *item = json_array_get(r, i);
         const char *name = json_string_value(json_object_get(item, "name"));
-        log_stderr("init market %s", name);
+        log_stderr("initalize market - %s", name);
+
         struct market_info *info = create_market(name);
         if (info == NULL) {
             log_error("create market %s fail", name);
@@ -371,6 +375,7 @@ static int init_market(void)
             redisFree(context);
             return -__LINE__;
         }
+
         int ret = load_market(context, info);
         if (ret < 0) {
             log_error("load market %s fail: %d", name, ret);
@@ -378,8 +383,14 @@ static int init_market(void)
             redisFree(context);
             return -__LINE__;
         }
+
+
     }
     json_decref(r);
+
+    // Set KRW last price to 1
+    //redisReply *reply = redisCmd(context, "SET k:CHU:last 1");
+    //freeReplyObject(reply);
     redisFree(context);
 
     return 0;

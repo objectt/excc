@@ -18,6 +18,7 @@ enum {
     HISTORY_USER_DEAL,
     HISTORY_ORDER_DETAIL,
     HISTORY_ORDER_DEAL,
+    WALLET_USER_BALANCE,
 };
 
 struct dict_sql_key {

@@ -12,6 +12,7 @@ static dict_t *dict_asset;
 struct asset_type {
     int prec_save;
     int prec_show;
+    int id;
 };
 
 static uint32_t asset_dict_hash_function(const void *key)
@@ -120,6 +121,7 @@ int init_balance()
         struct asset_type type;
         type.prec_save = settings.assets[i].prec_save;
         type.prec_show = settings.assets[i].prec_show;
+        type.id = settings.assets[i].id;
         if (dict_add(dict_asset, settings.assets[i].name, &type) == NULL)
             return -__LINE__;
     }
@@ -152,6 +154,12 @@ int asset_prec_show(const char *asset)
 {
     struct asset_type *at = get_asset_type(asset);
     return at ? at->prec_show: -1;
+}
+
+int asset_idx(const char *asset)
+{
+    struct asset_type *at = get_asset_type(asset);
+    return at->id;
 }
 
 mpd_t *balance_get(uint32_t user_id, uint32_t type, const char *asset)
@@ -391,4 +399,34 @@ json_t *get_user_balance_wallet(uint32_t user_id)
     mysql_free_result(result);
 
     return records;
+}
+
+int update_user_balance_wallet(uint32_t user_id, int asset_id, mpd_t *price, mpd_t *change)
+{
+    char *price_str = mpd_to_sci(price, 0);
+    char *change_str = mpd_to_sci(change, 0);
+
+    sds sql = sdsnew ("INSERT INTO wallet (user_id, asset_id, blended, purchased) VALUES ");
+    sql = sdscatprintf(sql, "(%u, %u, ", user_id, asset_id);
+    sql = sdscatprintf(sql, "'%s', ", price_str);
+    sql = sdscatprintf(sql, "'%s') ", change_str);
+    sql = sdscatprintf(sql, "ON DUPLICATE KEY UPDATE purchased = purchased + ");
+    sql = sdscatprintf(sql, "'%s'", change_str);
+    sql = sdscatprintf(sql, ", blended = (blended + ");
+    sql = sdscatprintf(sql, "'%s')/2", price_str);
+
+    MYSQL *conn = mysql_connect(&settings.db_sys); // XXX Need optimization
+    int ret = mysql_real_query(conn, sql, sdslen(sql));
+    if (ret != 0) {
+        log_error("exec sql: %s fail: %d %s", sql, mysql_errno(conn), mysql_error(conn));
+        sdsfree(sql);
+        free(price_str);
+        free(change_str);
+        return -__LINE__;
+    }
+    sdsfree(sql);
+    free(price_str);
+    free(change_str);
+
+    return ret;
 }

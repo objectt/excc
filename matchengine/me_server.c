@@ -16,6 +16,7 @@
 static rpc_svr *svr;
 static dict_t *dict_cache;
 static nw_timer cache_timer;
+static nw_timer config_timer;
 
 struct cache_val {
     double      time;
@@ -152,13 +153,13 @@ static int on_cmd_balance_query(nw_ses *ses, rpc_pkg *pkg, json_t *params)
     if (!json_is_integer(json_array_get(params, 1)))
         return reply_error_invalid_argument(ses, pkg);
     uint32_t detail = json_integer_value(json_array_get(params, 1));
-    if (detail != 1 || detail != 2)
+    if (detail != 0 && detail != 1)
         return reply_error_invalid_argument(ses, pkg);
 
     json_t *result = json_object();
 
     // Assets - Show All
-    if (request_size == 1) {
+    if (request_size == 2) {
         for (size_t i = 0; i < settings.asset_num; ++i) {
             const char *asset = settings.assets[i].name;
             json_t *unit = json_object();
@@ -176,6 +177,7 @@ static int on_cmd_balance_query(nw_ses *ses, rpc_pkg *pkg, json_t *params)
                     json_object_set_new_mpd(unit, "available", available);
                 }
             } else {
+                available = mpd_qncopy(mpd_zero);
                 json_object_set_new(unit, "available", json_string("0"));
             }
 
@@ -190,6 +192,7 @@ static int on_cmd_balance_query(nw_ses *ses, rpc_pkg *pkg, json_t *params)
                     json_object_set_new_mpd(unit, "freeze", freeze);
                 }
             } else {
+                freeze = mpd_qncopy(mpd_zero);
                 json_object_set_new(unit, "freeze", json_string("0"));
             }
 
@@ -199,13 +202,16 @@ static int on_cmd_balance_query(nw_ses *ses, rpc_pkg *pkg, json_t *params)
                 mpd_add(total, available, freeze, &mpd_ctx);
                 json_object_set_new_mpd(unit, "total", total);  // Total amount
 
-                mpd_t *value = mpd_new(&mpd_ctx);
                 mpd_t *last_price = get_market_last_price(asset); // From MP Redis (max 10s delay)
-                mpd_mul(value, total, last_price, &mpd_ctx);
-                json_object_set_new_mpd(unit, "value", value); // Value in currency
+                mpd_mul(total, total, last_price, &mpd_ctx);
+                mpd_rescale(total, total, -prec_show, &mpd_ctx);
+                json_object_set_new_mpd(unit, "value", total); // Value in default currency
 
                 json_object_set_new(unit, "blended", json_string("0"));
                 json_object_set_new(unit, "purchased", json_string("0"));
+
+                mpd_del(total);
+                mpd_del(last_price);
             }
 
             json_object_set_new(result, asset, unit);
@@ -230,7 +236,7 @@ static int on_cmd_balance_query(nw_ses *ses, rpc_pkg *pkg, json_t *params)
         }
     } else {
     // Assets - Show requested assets only
-        for (size_t i = 1; i < request_size; ++i) {
+        for (size_t i = 2; i < request_size; ++i) {
             const char *asset = json_string_value(json_array_get(params, i));
             if (!asset || !asset_exist(asset)) {
                 json_decref(result);
@@ -315,6 +321,12 @@ static int on_cmd_balance_update(nw_ses *ses, rpc_pkg *pkg, json_t *params)
     // detail
     json_t *detail = json_array_get(params, 5);
     if (!json_is_object(detail)) {
+        mpd_del(change);
+        return reply_error_invalid_argument(ses, pkg);
+    }
+
+    json_t *price = json_object_get(detail, "price");
+    if (price != NULL && !json_is_string(price)) {
         mpd_del(change);
         return reply_error_invalid_argument(ses, pkg);
     }
@@ -1247,6 +1259,11 @@ static void on_cache_timer(nw_timer *timer, void *privdata)
     dict_clear(dict_cache);
 }
 
+static void on_config_timer(nw_timer *timer, void *data)
+{
+    update_config();
+}
+
 int init_server(void)
 {
     rpc_svr_type type;
@@ -1276,6 +1293,9 @@ int init_server(void)
 
     nw_timer_set(&cache_timer, 60, true, on_cache_timer, NULL);
     nw_timer_start(&cache_timer);
+
+    nw_timer_set(&config_timer, 60, true, on_config_timer, NULL);
+    nw_timer_start(&config_timer);
 
     return 0;
 }

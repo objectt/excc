@@ -4,13 +4,14 @@
  */
 
 # include "me_config.h"
+# include "me_market.h"
 
 struct settings settings;
 
 // Load assets config from database
 static int load_assets_from_db(MYSQL *conn)
 {
-    sds sql = sdsnew("SELECT id, name, prec_save, prec_show FROM assets");
+    sds sql = sdsnew("SELECT id, name, prec_save, prec_show FROM assets WHERE id = 1 OR is_listed = 1");
     log_trace("exec sql: %s", sql);
     int ret = mysql_real_query(conn, sql, sdslen(sql));
     if (ret != 0) {
@@ -36,13 +37,54 @@ static int load_assets_from_db(MYSQL *conn)
     return 0;
 }
 
+// Load newly added assets
+static int update_assets_from_db(MYSQL *conn)
+{
+    sds sql = sdsnew("SELECT id, name, prec_save, prec_show FROM assets A "
+                     "WHERE A.is_listed = 0 AND A.id != 1");
+    log_trace("exec sql: %s", sql);
+    int ret = mysql_real_query(conn, sql, sdslen(sql));
+    if (ret != 0) {
+        log_error("exec sql: %s fail: %d %s", sql, mysql_errno(conn), mysql_error(conn));
+        sdsfree(sql);
+        return -1;
+    }
+    sdsfree(sql);
+
+    MYSQL_RES *result = mysql_store_result(conn);
+    int asset_num = mysql_num_rows(result);
+    asset_info_t *new_asset = realloc(settings.assets, sizeof(asset_info_t) * (settings.asset_num + asset_num));
+
+    if (new_asset == NULL) {
+        mysql_free_result(result);
+        return -__LINE__;
+    }
+
+    settings.assets = new_asset;
+
+    log_debug("update_assets_from_db : %u new assets found", asset_num);
+    for (size_t i = settings.asset_num; i < settings.asset_num + asset_num; ++i) {
+        MYSQL_ROW row = mysql_fetch_row(result);
+
+        settings.assets[i].id = strtoul(row[0], NULL, 0);
+        settings.assets[i].name = strdup(row[1]);
+        settings.assets[i].prec_save = strtoul(row[2], NULL, 0);
+        settings.assets[i].prec_show = strtoul(row[3], NULL, 0);
+    }
+    mysql_free_result(result);
+
+    settings.asset_num = settings.asset_num + asset_num;
+
+    return 0;
+}
+
 // Load market config from database
 static int load_market_from_db(MYSQL *conn)
 {
     sds sql = sdsnew("SELECT A1.name, A1.prec_show AS stock_prec, M.min_amount, "
                      "A2.name AS currency_name, A2.prec_show AS currency_prec, M.fee_prec "
                      "FROM market M, assets A1, assets A2 "
-                     "WHERE M.stock = A1.id AND M.currency = A2.id AND M.is_open = 1;");
+                     "WHERE M.stock = A1.id AND M.currency = A2.id AND A1.is_listed = 1;");
     log_trace("exec sql: %s", sql);
     int ret = mysql_real_query(conn, sql, sdslen(sql));
     if (ret != 0) {
@@ -72,40 +114,68 @@ static int load_market_from_db(MYSQL *conn)
     return 0;
 }
 
-#if 0
-static int load_markets(json_t *root, const char *key)
+static int update_asset_status(MYSQL *conn, int asset_id) 
 {
-    json_t *node = json_object_get(root, key);
-    if (!node || !json_is_array(node)) {
+    sds sql = sdsempty();
+    sql = sdscatprintf(sql, "UPDATE assets SET is_listed = 1 WHERE id = %d", asset_id);
+
+    int ret = mysql_real_query(conn, sql, sdslen(sql));
+    if (ret != 0) {
+        log_error("exec sql: %s fail: %d %s", sql, mysql_errno(conn), mysql_error(conn));
+        sdsfree(sql);
+        return -1;
+    }
+    sdsfree(sql);
+
+    return 1;
+}
+
+// Update market list
+static int update_market_from_db(MYSQL *conn)
+{
+    sds sql = sdsnew("SELECT A1.name, A1.prec_show AS stock_prec, M.min_amount, "
+                     "A2.name AS currency_name, A2.prec_show AS currency_prec, M.fee_prec, M.stock "
+                     "FROM market M, assets A1, assets A2 "
+                     "WHERE M.stock = A1.id AND M.currency = A2.id AND A1.is_listed = 0;");
+    log_trace("exec sql: %s", sql);
+    int ret = mysql_real_query(conn, sql, sdslen(sql));
+    if (ret != 0) {
+        log_error("exec sql: %s fail: %d %s", sql, mysql_errno(conn), mysql_error(conn));
+        sdsfree(sql);
+        return -1;
+    }
+    sdsfree(sql);
+
+    MYSQL_RES *result = mysql_store_result(conn);
+    int market_num = mysql_num_rows(result);
+    market_info_t *new_market = realloc(settings.markets,
+                                        sizeof(market_info_t) * (settings.market_num + market_num));
+
+    if (new_market == NULL)
         return -__LINE__;
+
+    settings.markets = new_market;
+
+    for (size_t i = settings.market_num; i < settings.market_num + market_num; ++i) {
+        MYSQL_ROW row = mysql_fetch_row(result);
+
+        settings.markets[i].name = strdup(row[0]);
+        settings.markets[i].fee_prec = strtoul(row[5], NULL, 0);
+        settings.markets[i].min_amount = decimal(row[2], 0);
+
+        settings.markets[i].stock = strdup(row[0]);
+        settings.markets[i].stock_prec = strtoul(row[1], NULL, 0);
+        settings.markets[i].money = strdup(row[3]);
+        settings.markets[i].money_prec = strtoul(row[4], NULL, 0);
+
+        update_asset_status(conn, strtoul(row[6], NULL, 0));
     }
+    mysql_free_result(result);
 
-    settings.market_num = json_array_size(node);
-    settings.markets = malloc(sizeof(struct market) * settings.market_num);
-    for (size_t i = 0; i < settings.market_num; ++i) {
-        json_t *row = json_array_get(node, i);
-        if (!json_is_object(row))
-            return -__LINE__;
-        ERR_RET_LN(read_cfg_str(row, "name", &settings.markets[i].name, NULL));
-        ERR_RET_LN(read_cfg_int(row, "fee_prec", &settings.markets[i].fee_prec, false, 4));
-        ERR_RET_LN(read_cfg_mpd(row, "min_amount", &settings.markets[i].min_amount, "0.01"));
-
-        json_t *stock = json_object_get(row, "stock");
-        if (!stock || !json_is_object(stock))
-            return -__LINE__;
-        ERR_RET_LN(read_cfg_str(stock, "name", &settings.markets[i].stock, NULL));
-        ERR_RET_LN(read_cfg_int(stock, "prec", &settings.markets[i].stock_prec, true, 0));
-
-        json_t *money = json_object_get(row, "money");
-        if (!money || !json_is_object(money))
-            return -__LINE__;
-        ERR_RET_LN(read_cfg_str(money, "name", &settings.markets[i].money, NULL));
-        ERR_RET_LN(read_cfg_int(money, "prec", &settings.markets[i].money_prec, true, 0));
-    }
+    settings.market_num = settings.market_num + market_num;
 
     return 0;
 }
-#endif
 
 static int read_config_from_json(json_t *root)
 {
@@ -161,19 +231,6 @@ static int read_config_from_json(json_t *root)
         return -__LINE__;
     }
 
-#if 0
-    ret = load_assets(root, "assets");
-    if (ret < 0) {
-        printf("load assets config fail: %d\n", ret);
-        return -__LINE__;
-    }
-    ret = load_markets(root, "markets");
-    if (ret < 0) {
-        printf("load markets config fail: %d\n", ret);
-        return -__LINE__;
-    }
-#endif
-
     ret = read_cfg_str(root, "brokers", &settings.brokers, NULL);
     if (ret < 0) {
         printf("load brokers fail: %d\n", ret);
@@ -224,8 +281,20 @@ int init_config(const char *path)
     ret = load_assets_from_db(conn);
     ret = load_market_from_db(conn);
 
-    redis = redis_sentinel_create(&settings.redis_mp);
+    // For market last price
+    ret = init_redis();
+    if (ret < 0) {
+        printf("redis connection failed");
+        return -__LINE__;
+    }
 
     return 0;
 }
 
+void update_config()
+{
+    log_trace("update_config");
+    MYSQL *conn = mysql_connect(&settings.db_sys);
+    update_assets_from_db(conn);
+    update_market_from_db(conn);
+}

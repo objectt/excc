@@ -48,14 +48,14 @@
 # define MAX_PENDING_HISTORY    1000
 # define MAX_PENDING_MESSAGE    1000
 
-struct asset {
+typedef struct asset {
     int                 id;
     char                *name;
     int                 prec_save;
     int                 prec_show;
-};
+} asset_info_t;
 
-struct market {
+typedef struct market {
     char                *name;
     char                *stock;
     char                *money;
@@ -63,7 +63,7 @@ struct market {
     int                 stock_prec;
     int                 money_prec;
     mpd_t               *min_amount;
-};
+} market_info_t;
 
 struct settings {
     bool                debug;
@@ -93,8 +93,6 @@ struct settings {
 extern struct settings settings;
 
 int init_config(const char *path);
-
-redis_sentinel_t *redis;
+void update_config();
 
 # endif
-
