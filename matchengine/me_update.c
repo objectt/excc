@@ -102,16 +102,30 @@ int update_user_balance(bool real, uint32_t user_id, const char *asset, const ch
 
     dict_entry *entry = dict_find(dict_update, &key);
     if (entry) {
-        return -1;
+        return -1; // repeated request
     }
 
     bool is_deposit = true;
     mpd_t *result;
     mpd_t *abs_change = mpd_new(&mpd_ctx);
     mpd_abs(abs_change, change, &mpd_ctx);
-    if (mpd_cmp(change, mpd_zero, &mpd_ctx) >= 0) {
+
+    log_debug("balance.update - action = %s", business);
+
+    // 1) FREEZE
+    if (strcmp(business, "freeze") == 0) {
+        if (mpd_cmp(change, mpd_zero, &mpd_ctx) >= 0)
+            return -__LINE__;
+
+        if (balance_freeze(user_id, asset, abs_change))
+            result = balance_sub(user_id, BALANCE_TYPE_AVAILABLE, asset, abs_change);
+    }
+    // 2) DEPOSIT
+    else if (mpd_cmp(change, mpd_zero, &mpd_ctx) >= 0) {
         result = balance_add(user_id, BALANCE_TYPE_AVAILABLE, asset, abs_change);
-    } else {
+    }
+    // 3) WITHDRAW
+    else {
         result = balance_sub(user_id, BALANCE_TYPE_AVAILABLE, asset, abs_change);
         is_deposit = false;
     }
@@ -130,8 +144,10 @@ int update_user_balance(bool real, uint32_t user_id, const char *asset, const ch
         if (price != NULL && is_deposit) {
             mpd_t *_price = decimal(json_string_value(price), 0);
 
-            if (_price == NULL)
+            if (_price == NULL) {
+                log_debug("balance.update - invalid subscription price");
                 return -__LINE__;
+            }
 
             int asset_id = asset_idx(asset);
             update_user_balance_wallet(user_id, asset_id, _price, change);

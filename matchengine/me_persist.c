@@ -388,6 +388,7 @@ int make_slice(time_t timestamp)
         log_fatal("dump_to_db fail: %d", ret);
     }
 
+    // Drop tables
     ret = clear_slice(timestamp);
     if (ret < 0) {
         log_fatal("clear_slice fail: %d", ret);

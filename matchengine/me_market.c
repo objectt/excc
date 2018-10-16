@@ -1076,3 +1076,32 @@ int init_redis(void)
         return -__LINE__;
     return 0;
 }
+
+int market_register(const char *asset)
+{
+    sds sql = sdsnew("INSERT INTO assets (name) VALUES (");
+    sql = sdscatprintf(sql, "'%s')", asset);
+
+    MYSQL *conn = mysql_connect(&settings.db_sys);
+    int ret = mysql_real_query(conn, sql, sdslen(sql));
+    if (ret != 0) {
+        log_error("exec sql: %s fail: %d %s", sql, mysql_errno(conn), mysql_error(conn));
+        sdsfree(sql);
+        return -__LINE__;
+    }
+    sdsfree(sql);
+
+    int asset_id = mysql_insert_id(conn);
+
+    sql = sdsnew("INSERT INTO market (stock) VALUES (");
+    sql = sdscatprintf(sql, "%u)", asset_id);
+    ret = mysql_real_query(conn, sql, sdslen(sql));
+    if (ret != 0) {
+        log_error("exec sql: %s fail: %d %s", sql, mysql_errno(conn), mysql_error(conn));
+        sdsfree(sql);
+        return -__LINE__;
+    }
+    sdsfree(sql);
+
+    return ret;
+}

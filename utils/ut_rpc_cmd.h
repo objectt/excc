@@ -35,5 +35,7 @@
 # define CMD_MARKET_LIST            307
 # define CMD_MARKET_SUMMARY         308
 
+# define CMD_MARKET_REGISTER        309
+
 # endif
 

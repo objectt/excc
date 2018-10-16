@@ -301,7 +301,7 @@ static int on_cmd_balance_update(nw_ses *ses, rpc_pkg *pkg, json_t *params)
     if (prec < 0)
         return reply_error_invalid_argument(ses, pkg);
 
-    // business
+    // business - deposit/withdraw/freeze
     if (!json_is_string(json_array_get(params, 2)))
         return reply_error_invalid_argument(ses, pkg);
     const char *business = json_string_value(json_array_get(params, 2));
@@ -1062,6 +1062,25 @@ invalid_argument:
     return reply_error_invalid_argument(ses, pkg);
 }
 
+static int on_cmd_market_register(nw_ses *ses, rpc_pkg *pkg, json_t *params)
+{
+    if (json_array_size(params) != 1)
+        return reply_error_invalid_argument(ses, pkg);
+
+    if (!json_is_string(json_array_get(params, 0)))
+        return reply_error_invalid_argument(ses, pkg);
+    const char *market_name = json_string_value(json_array_get(params, 0));
+    market_t *market = get_market(market_name);
+    if (market != NULL)
+        return reply_error_invalid_argument(ses, pkg);
+
+    if (market_register(market_name) < 0) {
+        return reply_error_internal_error(ses, pkg);
+    }
+
+    return reply_success(ses, pkg);
+}
+
 static void svr_on_recv_pkg(nw_ses *ses, rpc_pkg *pkg)
 {
     json_t *params = json_loadb(pkg->body, pkg->body_size, 0, NULL);
@@ -1187,6 +1206,13 @@ static void svr_on_recv_pkg(nw_ses *ses, rpc_pkg *pkg)
             log_error("on_cmd_market_summary%s fail: %d", params_str, ret);
         }
         break;
+    case CMD_MARKET_REGISTER:
+        log_trace("from: %s cmd market register, sequence: %u params: %s", nw_sock_human_addr(&ses->peer_addr), pkg->sequence, params_str);
+        ret = on_cmd_market_register(ses, pkg, params);
+        if (ret < 0) {
+            log_error("on_cmd_market_register%s fail: %d", params_str, ret);
+        }
+        break;
     default:
         log_error("from: %s unknown command: %u", nw_sock_human_addr(&ses->peer_addr), pkg->command);
         break;
@@ -1294,7 +1320,7 @@ int init_server(void)
     nw_timer_set(&cache_timer, 60, true, on_cache_timer, NULL);
     nw_timer_start(&cache_timer);
 
-    nw_timer_set(&config_timer, 60, true, on_config_timer, NULL);
+    nw_timer_set(&config_timer, 3600, true, on_config_timer, NULL);
     nw_timer_start(&config_timer);
 
     return 0;
