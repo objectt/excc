@@ -61,17 +61,21 @@ skiplist_t *skiplist_insert(skiplist_t *list, void *value)
     skiplist_node *update[SKIPLIST_MAX_LEVEL];
     skiplist_node *node = list->header;
 
+    // 1) Find maximum(=node prior to the new node) at each level
     for (int i = list->level - 1; i >= 0; i--) {
         while (node->forward[i] && list->type.compare(node->forward[i]->value, value) <= 0) {
             node = node->forward[i];
         }
         update[i] = node;
     }
+
     if (node->value && list->type.compare(node->value, value) == 0) {
         return NULL;
     }
 
     int level = skiplist_random_level();
+
+    // 2) Add a new (single-noded) depth to the list
     if (level > list->level) {
         for (int i = list->level; i < level; ++i) {
             update[i] = list->header;
@@ -83,11 +87,14 @@ skiplist_t *skiplist_insert(skiplist_t *list, void *value)
     if (node == NULL) {
         return NULL;
     }
+
+    // 3) Add a new node
     for (int i = 0; i < level; ++i) {
         node->forward[i] = update[i]->forward[i];
         update[i]->forward[i] = node;
     }
     list->len += 1;
+
     return list;
 }
 

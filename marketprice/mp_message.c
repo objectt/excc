@@ -347,6 +347,7 @@ static int init_market(void)
     type.hash_function = dict_sds_key_hash_func;
     type.key_compare = dict_sds_key_compare;
     type.key_destructor = dict_sds_key_free;
+
     dict_market = dict_create(&type, 64);
     if (dict_market == NULL)
         return -__LINE__;
@@ -387,11 +388,35 @@ static int init_market(void)
 
     }
     json_decref(r);
-
-    // Set KRW last price to 1
-    //redisReply *reply = redisCmd(context, "SET k:CHU:last 1");
-    //freeReplyObject(reply);
     redisFree(context);
+
+    return 0;
+}
+
+static int reload_market()
+{
+    json_t *r = send_market_list_req(); // market list from MatchEngine
+    if (r == NULL) {
+        log_error("get market list fail");
+        return -__LINE__;
+    }
+
+    for (size_t i = 0; i < json_array_size(r); ++i) {
+        json_t *item = json_array_get(r, i);
+        const char *name = json_string_value(json_object_get(item, "name"));
+
+        if (market_exist(name))
+            continue;
+
+        log_stderr("initalize a newly added market - %s", name);
+        struct market_info *info = create_market(name);
+        if (info == NULL) {
+            log_error("create market %s fail", name);
+            json_decref(r);
+            return -__LINE__;
+        }
+    }
+    json_decref(r);
 
     return 0;
 }
@@ -807,6 +832,7 @@ static void on_market_timer(nw_timer *timer, void *privdata)
 static void on_clear_timer(nw_timer *timer, void *privdata)
 {
     clear_kline();
+    reload_market();
 }
 
 static int clear_key(redisContext *context, const char *key, time_t end)
@@ -1380,12 +1406,31 @@ json_t *get_market_deals(const char *market, int limit, uint64_t last_id)
     return result;
 }
 
-mpd_t  *get_market_last_price(const char *market)
+mpd_t *get_market_last_price(const char *market)
 {
     struct market_info *info = market_query(market);
     if (info == NULL)
         return NULL;
 
     return info->last;
+}
+
+json_t *get_market_last_prices(json_t *result)
+{
+    dict_iterator *iter = dict_get_iterator(dict_market);
+    dict_entry *entry;
+    while ((entry = dict_next(iter)) != NULL) {
+        struct market_info *info = entry->val;
+        char *last_str = mpd_to_sci(info->last, 0);
+
+        json_t *row = json_object();
+        json_object_set_new(row, "name", json_string(info->name));
+        json_object_set_new(row, "last", json_string(last_str));
+        json_array_append_new(result, row);
+        free(last_str);
+    }
+    dict_release_iterator(iter);
+
+    return result;
 }
 
