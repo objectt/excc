@@ -67,6 +67,8 @@ mpd_t *get_market_last_price(const char *market);
 
 int init_redis(void);
 int market_register(const char *asset);
+json_t *market_detail(market_t *market);
+int add_user_to_market(const char *market, uint32_t user_id);
 
 # endif
 

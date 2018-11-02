@@ -286,6 +286,7 @@ static int init_methods_handler(void)
     ERR_RET_LN(add_handler("market.summary", matchengine, CMD_MARKET_SUMMARY));
 
     ERR_RET_LN(add_handler("market.register", matchengine, CMD_MARKET_REGISTER));
+    ERR_RET_LN(add_handler("market.detail", matchengine, CMD_MARKET_DETAIL));
 
     return 0;
 }

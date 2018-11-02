@@ -43,6 +43,7 @@ static int64_t  last_offset;
 static nw_timer market_timer;
 static nw_timer clear_timer;
 static nw_timer redis_timer;
+static nw_timer config_timer;
 
 static uint32_t dict_sds_key_hash_func(const void *key)
 {
@@ -397,7 +398,7 @@ static int reload_market()
 {
     json_t *r = send_market_list_req(); // market list from MatchEngine
     if (r == NULL) {
-        log_error("get market list fail");
+        log_error("get market list from MatchEngine failed");
         return -__LINE__;
     }
 
@@ -408,7 +409,7 @@ static int reload_market()
         if (market_exist(name))
             continue;
 
-        log_stderr("initalize a newly added market - %s", name);
+        log_debug("initalize a newly added market - %s", name);
         struct market_info *info = create_market(name);
         if (info == NULL) {
             log_error("create market %s fail", name);
@@ -821,6 +822,11 @@ static void clear_kline(void)
     dict_release_iterator(iter);
 }
 
+static void on_config_timer(nw_timer *timer, void *privdata)
+{
+    reload_market();
+}
+
 static void on_market_timer(nw_timer *timer, void *privdata)
 {
     int ret = flush_market();
@@ -832,7 +838,6 @@ static void on_market_timer(nw_timer *timer, void *privdata)
 static void on_clear_timer(nw_timer *timer, void *privdata)
 {
     clear_kline();
-    reload_market();
 }
 
 static int clear_key(redisContext *context, const char *key, time_t end)
@@ -932,6 +937,10 @@ int init_message(void)
 
     nw_timer_set(&market_timer, 10, true, on_market_timer, NULL);
     nw_timer_start(&market_timer);
+
+    // XXX Temporary
+    nw_timer_set(&config_timer, 60, true, on_config_timer, NULL);
+    nw_timer_start(&config_timer);
 
     nw_timer_set(&clear_timer, 3600, true, on_clear_timer, NULL);
     nw_timer_start(&clear_timer);

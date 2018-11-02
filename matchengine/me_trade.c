@@ -41,6 +41,7 @@ int init_trade(void)
     if (dict_market == NULL)
         return -__LINE__;
 
+    log_debug("creating %zu markets", settings.market_num);
     for (size_t i = 0; i < settings.market_num; ++i) {
         market_t *m = market_create(&settings.markets[i]);
         if (m == NULL) {
@@ -61,3 +62,8 @@ market_t *get_market(const char *name)
     return NULL;
 }
 
+void update_market(market_info_t *market)
+{
+    market_t *m = market_create(market);
+    dict_add(dict_market, market->name, m);
+}

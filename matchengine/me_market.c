@@ -8,6 +8,7 @@
 # include "me_balance.h"
 # include "me_history.h"
 # include "me_message.h"
+# include "me_trade.h"
 
 uint64_t order_id_start;
 uint64_t deals_id_start;
@@ -238,10 +239,15 @@ static int order_finish(bool real, market_t *m, order_t *order)
     struct dict_user_key user_key = { .user_id = order->user_id };
     dict_entry *entry = dict_find(m->users, &user_key);
     if (entry) {
-        skiplist_t *order_list = entry->val;
-        skiplist_node *node = skiplist_find(order_list, order);
-        if (node) {
-            skiplist_delete(order_list, node);
+        mpd_t *balance = balance_total(order->user_id, m->name);
+        if (mpd_cmp(balance, mpd_zero, &mpd_ctx) == 0) {
+            dict_delete(m->users, &user_key); // Remove from dict users if balance is zero
+        } else {
+            skiplist_t *order_list = entry->val;
+            skiplist_node *node = skiplist_find(order_list, order);
+            if (node) {
+                skiplist_delete(order_list, node);
+            }
         }
     }
 
@@ -371,6 +377,32 @@ static int execute_limit_ask_order(bool real, market_t *m, order_t *taker)
     mpd_t *ask_fee  = mpd_new(&mpd_ctx);
     mpd_t *bid_fee  = mpd_new(&mpd_ctx);
     mpd_t *result   = mpd_new(&mpd_ctx);
+
+    mpd_t *last_price = get_market_last_price(m->name);
+
+    if (real &&
+        last_price != NULL &&
+        mpd_cmp(last_price, mpd_zero, &mpd_ctx) != 0 &&
+        mpd_cmp(taker->price, last_price, &mpd_ctx) != 0) {
+        mpd_t *limit = decimal("0.3", 0);
+        mpd_t *range = mpd_new(&mpd_ctx);
+        mpd_t *diff = mpd_new(&mpd_ctx);
+        mpd_mul(range, last_price, limit, &mpd_ctx);
+        mpd_del(limit);
+
+        mpd_sub(diff, taker->price, last_price, &mpd_ctx);
+        mpd_abs(diff, diff, &mpd_ctx);
+
+        // Within 30% of last price
+        if (mpd_cmp(diff, range, &mpd_ctx) > 0) {
+            mpd_del(range);
+            mpd_del(diff);
+            return -4;
+        }
+
+        mpd_del(range);
+        mpd_del(diff);
+    }
 
     skiplist_node *node;
     skiplist_iter *iter = skiplist_get_iterator(m->bids);
@@ -579,12 +611,15 @@ static int execute_limit_bid_order(bool real, market_t *m, order_t *taker)
 
 int market_put_limit_order(bool real, json_t **result, market_t *m, uint32_t user_id, uint32_t side, mpd_t *amount, mpd_t *price, mpd_t *taker_fee, mpd_t *maker_fee, const char *source)
 {
+    // SELL
     if (side == MARKET_ORDER_SIDE_ASK) {
         mpd_t *balance = balance_get(user_id, BALANCE_TYPE_AVAILABLE, m->stock);
         if (!balance || mpd_cmp(balance, amount, &mpd_ctx) < 0) {
             return -1;
         }
-    } else {
+    }
+    // BUY
+    else {
         mpd_t *balance = balance_get(user_id, BALANCE_TYPE_AVAILABLE, m->money);
         mpd_t *require = mpd_new(&mpd_ctx);
         mpd_mul(require, amount, price, &mpd_ctx);
@@ -639,6 +674,11 @@ int market_put_limit_order(bool real, json_t **result, market_t *m, uint32_t use
         ret = execute_limit_bid_order(real, m, order);
     }
     if (ret < 0) {
+        if (ret == -4) {
+            order_free(order);
+            return ret;
+        }
+
         log_error("execute order: %"PRIu64" fail: %d", order->id, ret);
         order_free(order);
         return -__LINE__;
@@ -1102,6 +1142,73 @@ int market_register(const char *asset)
         return -__LINE__;
     }
     sdsfree(sql);
+    mysql_close(conn);
 
     return ret;
+}
+
+json_t *market_detail(market_t *market)
+{
+    json_t *result = json_array();
+    dict_entry *entry;
+    dict_iterator *iter = dict_get_iterator(market->users);
+    while ((entry = dict_next(iter)) != NULL) {
+        struct dict_user_key *key = entry->key;
+
+        mpd_t *total = mpd_new(&mpd_ctx);
+        mpd_copy(total, mpd_zero, &mpd_ctx);
+        mpd_t *available = balance_get(key->user_id, BALANCE_TYPE_AVAILABLE, market->name);
+        mpd_t *freeze = balance_get(key->user_id, BALANCE_TYPE_FREEZE, market->name);
+
+        json_t *row = json_object();
+        json_object_set_new(row, "user_id", json_integer(key->user_id));
+
+        if (!available) {
+            json_object_set_new(row, "available", json_string("0"));
+        } else {
+            json_object_set_new_mpd(row, "available", available);
+            mpd_add(total, total, available, &mpd_ctx);
+        }
+
+        if (!freeze) {
+            json_object_set_new(row, "freeze", json_string("0"));
+        } else {
+            json_object_set_new_mpd(row, "freeze", freeze);
+            mpd_add(total, total, freeze, &mpd_ctx);
+        }
+
+        json_object_set_new_mpd(row, "total", total);
+
+        if (mpd_cmp(total, mpd_zero, &mpd_ctx) > 0)
+            json_array_append_new(result, row);
+
+        mpd_del(total);
+    }
+    dict_release_iterator(iter);
+
+    return result;
+}
+
+int add_user_to_market(const char *market, uint32_t user_id)
+{
+    market_t *m = get_market(market);
+
+    if (!m)
+        return 0;
+
+    struct dict_user_key user_key = { .user_id = user_id };
+
+    dict_entry *entry = dict_find(m->users, &user_key);
+    if (!entry) {
+        skiplist_type type;
+        memset(&type, 0, sizeof(type));
+        type.compare = order_id_compare;
+        skiplist_t *order_list = skiplist_create(&type);
+
+
+        if (dict_add(m->users, &user_key, order_list) == NULL)
+            return -__LINE__;
+    }
+
+    return 0;
 }

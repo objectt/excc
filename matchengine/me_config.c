@@ -5,6 +5,8 @@
 
 # include "me_config.h"
 # include "me_market.h"
+# include "me_balance.h"
+# include "me_trade.h"
 
 struct settings settings;
 
@@ -70,6 +72,7 @@ static int update_assets_from_db(MYSQL *conn)
         settings.assets[i].name = strdup(row[1]);
         settings.assets[i].prec_save = strtoul(row[2], NULL, 0);
         settings.assets[i].prec_show = strtoul(row[3], NULL, 0);
+        update_asset(&(settings.assets[i])); // update dict_asset
     }
     mysql_free_result(result);
 
@@ -169,6 +172,7 @@ static int update_market_from_db(MYSQL *conn)
         settings.markets[i].money_prec = strtoul(row[4], NULL, 0);
 
         update_asset_status(conn, strtoul(row[6], NULL, 0));
+        update_market(&(settings.markets[i])); // update dict_market
     }
     mysql_free_result(result);
 
@@ -280,6 +284,7 @@ int init_config(const char *path)
     MYSQL *conn = mysql_connect(&settings.db_sys);
     ret = load_assets_from_db(conn);
     ret = load_market_from_db(conn);
+    mysql_close(conn);
 
     // For market last price
     ret = init_redis();
@@ -297,4 +302,5 @@ void update_config()
     MYSQL *conn = mysql_connect(&settings.db_sys);
     update_assets_from_db(conn);
     update_market_from_db(conn);
+    mysql_close(conn);
 }

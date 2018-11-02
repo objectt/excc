@@ -167,6 +167,11 @@ static int on_cmd_balance_query(nw_ses *ses, rpc_pkg *pkg, json_t *params)
             int prec_show = asset_prec_show(asset);
 
             mpd_t *available = balance_get(user_id, BALANCE_TYPE_AVAILABLE, asset);
+            mpd_t *freeze = balance_get(user_id, BALANCE_TYPE_FREEZE, asset);
+
+            if (!available && !freeze)
+                continue;
+
             if (available) {
                 if (prec_save != prec_show) {
                     mpd_t *show = mpd_qncopy(available);
@@ -181,7 +186,6 @@ static int on_cmd_balance_query(nw_ses *ses, rpc_pkg *pkg, json_t *params)
                 json_object_set_new(unit, "available", json_string("0"));
             }
 
-            mpd_t *freeze = balance_get(user_id, BALANCE_TYPE_FREEZE, asset);
             if (freeze) {
                 if (prec_save != prec_show) {
                     mpd_t *show = mpd_qncopy(freeze);
@@ -364,10 +368,11 @@ static json_t *get_asset_summary(const char *name)
 {
     size_t available_count;
     size_t freeze_count;
+    size_t total_count;
     mpd_t *total = mpd_new(&mpd_ctx);
     mpd_t *available = mpd_new(&mpd_ctx);
     mpd_t *freeze = mpd_new(&mpd_ctx);
-    balance_status(name, total, &available_count, available, &freeze_count, freeze);
+    balance_status(name, total, &available_count, available, &freeze_count, freeze, &total_count);
 
     json_t *obj = json_object();
     json_object_set_new(obj, "name", json_string(name));
@@ -376,6 +381,7 @@ static json_t *get_asset_summary(const char *name)
     json_object_set_new_mpd(obj, "available_balance", available);
     json_object_set_new(obj, "freeze_count", json_integer(freeze_count));
     json_object_set_new_mpd(obj, "freeze_balance", freeze);
+    json_object_set_new(obj, "total_count", json_integer(total_count));
 
     mpd_del(total);
     mpd_del(available);
@@ -488,6 +494,8 @@ static int on_cmd_order_put_limit(nw_ses *ses, rpc_pkg *pkg, json_t *params)
         return reply_error(ses, pkg, 10, "balance not enough");
     } else if (ret == -2) {
         return reply_error(ses, pkg, 11, "amount too small");
+    } else if (ret == -4) {
+        return reply_error(ses, pkg, 12, "price out of range");
     } else if (ret < 0) {
         log_fatal("market_put_limit_order fail: %d", ret);
         return reply_error_internal_error(ses, pkg);
@@ -1081,6 +1089,25 @@ static int on_cmd_market_register(nw_ses *ses, rpc_pkg *pkg, json_t *params)
     return reply_success(ses, pkg);
 }
 
+static int on_cmd_market_detail(nw_ses *ses, rpc_pkg *pkg, json_t *params)
+{
+    if (json_array_size(params) != 1)
+        return reply_error_invalid_argument(ses, pkg);
+
+    if (!json_is_string(json_array_get(params, 0)))
+        return reply_error_invalid_argument(ses, pkg);
+    const char *market_name = json_string_value(json_array_get(params, 0));
+    market_t *market = get_market(market_name);
+    if (market == NULL)
+        return reply_error_invalid_argument(ses, pkg);
+
+    json_t *result = market_detail(market);
+
+    int ret = reply_result(ses, pkg, result);
+    json_decref(result);
+    return ret;
+}
+
 static void svr_on_recv_pkg(nw_ses *ses, rpc_pkg *pkg)
 {
     json_t *params = json_loadb(pkg->body, pkg->body_size, 0, NULL);
@@ -1213,6 +1240,13 @@ static void svr_on_recv_pkg(nw_ses *ses, rpc_pkg *pkg)
             log_error("on_cmd_market_register%s fail: %d", params_str, ret);
         }
         break;
+    case CMD_MARKET_DETAIL:
+        log_trace("from: %s cmd market detail, sequence: %u params: %s", nw_sock_human_addr(&ses->peer_addr), pkg->sequence, params_str);
+        ret = on_cmd_market_detail(ses, pkg, params);
+        if (ret < 0) {
+            log_error("on_cmd_market_detail%s fail: %d", params_str, ret);
+        }
+        break;
     default:
         log_error("from: %s unknown command: %u", nw_sock_human_addr(&ses->peer_addr), pkg->command);
         break;
@@ -1320,9 +1354,8 @@ int init_server(void)
     nw_timer_set(&cache_timer, 60, true, on_cache_timer, NULL);
     nw_timer_start(&cache_timer);
 
-    nw_timer_set(&config_timer, 3600, true, on_config_timer, NULL);
+    nw_timer_set(&config_timer, 60, true, on_config_timer, NULL);
     nw_timer_start(&config_timer);
 
     return 0;
 }
-

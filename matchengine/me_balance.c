@@ -129,6 +129,16 @@ int init_balance()
     return 0;
 }
 
+void update_asset(asset_info_t *asset)
+{
+    struct asset_type type;
+    type.prec_save = asset->prec_save;
+    type.prec_show = asset->prec_show;
+    type.id = asset->id;
+
+    dict_add(dict_asset, asset->name, &type);
+}
+
 static struct asset_type *get_asset_type(const char *asset)
 {
     dict_entry *entry = dict_find(dict_asset, asset);
@@ -342,8 +352,9 @@ mpd_t *balance_total(uint32_t user_id, const char *asset)
     return balance;
 }
 
-int balance_status(const char *asset, mpd_t *total, size_t *available_count, mpd_t *available, size_t *freeze_count, mpd_t *freeze)
+int balance_status(const char *asset, mpd_t *total, size_t *available_count, mpd_t *available, size_t *freeze_count, mpd_t *freeze, size_t *total_count)
 {
+    *total_count = 0;
     *freeze_count = 0;
     *available_count = 0;
     mpd_copy(total, mpd_zero, &mpd_ctx);
@@ -364,6 +375,7 @@ int balance_status(const char *asset, mpd_t *total, size_t *available_count, mpd
             *freeze_count += 1;
             mpd_add(freeze, freeze, entry->val, &mpd_ctx);
         }
+        *total_count += 1;
     }
     dict_release_iterator(iter);
 
@@ -397,36 +409,42 @@ json_t *get_user_balance_wallet(uint32_t user_id)
         json_array_append_new(records, record);
     }
     mysql_free_result(result);
+    mysql_close(conn);
 
     return records;
 }
 
 int update_user_balance_wallet(uint32_t user_id, int asset_id, mpd_t *price, mpd_t *change)
 {
+    mpd_t *purchased = mpd_new(&mpd_ctx);
+    mpd_mul(purchased, price, change, &mpd_ctx);
+
     char *price_str = mpd_to_sci(price, 0);
-    char *change_str = mpd_to_sci(change, 0);
+    char *purchased_str = mpd_to_sci(purchased, 0);
+    mpd_del(purchased);
 
     sds sql = sdsnew ("INSERT INTO wallet (user_id, asset_id, blended, purchased) VALUES ");
     sql = sdscatprintf(sql, "(%u, %u, ", user_id, asset_id);
     sql = sdscatprintf(sql, "'%s', ", price_str);
-    sql = sdscatprintf(sql, "'%s') ", change_str);
+    sql = sdscatprintf(sql, "'%s') ", purchased_str);
     sql = sdscatprintf(sql, "ON DUPLICATE KEY UPDATE purchased = purchased + ");
-    sql = sdscatprintf(sql, "'%s'", change_str);
+    sql = sdscatprintf(sql, "'%s'", purchased_str);
     sql = sdscatprintf(sql, ", blended = (blended + ");
     sql = sdscatprintf(sql, "'%s')/2", price_str);
+
+    free(price_str);
+    free(purchased_str);
 
     MYSQL *conn = mysql_connect(&settings.db_sys); // XXX Need optimization
     int ret = mysql_real_query(conn, sql, sdslen(sql));
     if (ret != 0) {
         log_error("exec sql: %s fail: %d %s", sql, mysql_errno(conn), mysql_error(conn));
         sdsfree(sql);
-        free(price_str);
-        free(change_str);
+        mysql_close(conn);
         return -__LINE__;
     }
     sdsfree(sql);
-    free(price_str);
-    free(change_str);
+    mysql_close(conn);
 
     return ret;
 }

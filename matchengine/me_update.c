@@ -8,6 +8,7 @@
 # include "me_balance.h"
 # include "me_history.h"
 # include "me_message.h"
+# include "me_market.h"
 
 static dict_t *dict_update;
 static nw_timer timer;
@@ -105,12 +106,10 @@ int update_user_balance(bool real, uint32_t user_id, const char *asset, const ch
         return -1; // repeated request
     }
 
-    bool is_deposit = true;
+    bool is_deposit = false;
     mpd_t *result;
     mpd_t *abs_change = mpd_new(&mpd_ctx);
     mpd_abs(abs_change, change, &mpd_ctx);
-
-    log_debug("balance.update - action = %s", business);
 
     // 1) FREEZE
     if (strcmp(business, "freeze") == 0) {
@@ -123,11 +122,11 @@ int update_user_balance(bool real, uint32_t user_id, const char *asset, const ch
     // 2) DEPOSIT
     else if (mpd_cmp(change, mpd_zero, &mpd_ctx) >= 0) {
         result = balance_add(user_id, BALANCE_TYPE_AVAILABLE, asset, abs_change);
+        is_deposit = true;
     }
     // 3) WITHDRAW
     else {
         result = balance_sub(user_id, BALANCE_TYPE_AVAILABLE, asset, abs_change);
-        is_deposit = false;
     }
     mpd_del(abs_change);
     if (result == NULL)
@@ -161,6 +160,9 @@ int update_user_balance(bool real, uint32_t user_id, const char *asset, const ch
         free(detail_str);
         push_balance_message(now, user_id, asset, business, change);
     }
+
+    // Update dict_market->users
+    add_user_to_market(asset, user_id);
 
     return 0;
 }

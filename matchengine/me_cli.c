@@ -91,13 +91,14 @@ static sds on_cmd_balance_summary(const char *cmd, int argc, sds *argv)
     sds reply = sdsempty();
     reply = sdscatprintf(reply, "%-16s %-30s %-10s %-30s %-10s %-30s\n", "asset", "total", "available", "available", "freeze", "freeze");
 
+    size_t total_count;
     size_t available_count;
     size_t freeze_count;
     mpd_t *total = mpd_new(&mpd_ctx);
     mpd_t *available = mpd_new(&mpd_ctx);
     mpd_t *freeze = mpd_new(&mpd_ctx);
     for (size_t i = 0; i < settings.asset_num; ++i) {
-        balance_status(settings.assets[i].name, total, &available_count, available, &freeze_count, freeze);
+        balance_status(settings.assets[i].name, total, &available_count, available, &freeze_count, freeze, &total_count);
         char *total_str = mpd_to_sci(total, 0);
         char *available_str = mpd_to_sci(available, 0);
         char *freeze_str = mpd_to_sci(freeze, 0);
