@@ -27,7 +27,8 @@ static int process_orders_message(json_t *msg)
 
     asset_on_update(user_id, stock);
     asset_on_update(user_id, money);
-    order_on_update(user_id, event, order);
+    order_on_update(user_id, event, order, false);
+    order_on_update(GATEWAY_USER_ID, event, order, true); // XXX Notify middleware
 
     return 0;
 }

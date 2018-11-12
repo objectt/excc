@@ -129,6 +129,8 @@ server:
     if (ret < 0) {
         error(EXIT_FAILURE, errno, "init sing fail: %d", ret);
     }
+
+#if 0
     ret = init_kline();
     if (ret < 0) {
         error(EXIT_FAILURE, errno, "init kline fail: %d", ret);
@@ -153,6 +155,7 @@ server:
     if (ret < 0) {
         error(EXIT_FAILURE, errno, "init deals fail: %d", ret);
     }
+#endif
     ret = init_order();
     if (ret < 0) {
         error(EXIT_FAILURE, errno, "init order fail: %d", ret);
@@ -181,4 +184,3 @@ run:
 
     return 0;
 }
-

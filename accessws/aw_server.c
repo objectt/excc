@@ -787,6 +787,21 @@ static int on_method_asset_unsubscribe(nw_ses *ses, uint64_t id, struct clt_info
     return send_success(ses, id);
 }
 
+static int on_method_server_subscribe(nw_ses *ses, uint64_t id, struct clt_info *info, json_t *params)
+{
+    const char *market = json_string_value(json_array_get(params, 0));
+    if (market == NULL || strlen(market) >= MARKET_NAME_MAX_LEN)
+        return send_error_invalid_argument(ses, id);
+
+    info->auth = true;
+    info->user_id = GATEWAY_USER_ID;
+
+    if (order_subscribe(GATEWAY_USER_ID, ses, market) < 0)
+        return send_error_internal_error(ses, id);
+
+    return send_success(ses, id);
+}
+
 static int on_message(nw_ses *ses, const char *remote, const char *url, void *message, size_t size)
 {
     struct clt_info *info = ws_ses_privdata(ses);
@@ -850,11 +865,11 @@ static void on_close(nw_ses *ses, const char *remote)
 {
     log_trace("remote: %"PRIu64":%s websocket connection close", ses->id, remote);
 
-    kline_unsubscribe(ses);
-    depth_unsubscribe(ses);
-    price_unsubscribe(ses);
-    today_unsubscribe(ses);
-    deals_unsubscribe(ses);
+    //kline_unsubscribe(ses);
+    //depth_unsubscribe(ses);
+    //price_unsubscribe(ses);
+    //today_unsubscribe(ses);
+    //deals_unsubscribe(ses);
 
     struct clt_info *info = ws_ses_privdata(ses);
     if (info->auth) {
@@ -995,6 +1010,8 @@ static int init_svr(void)
     ERR_RET_LN(add_handler("asset.history",     on_method_asset_history));
     ERR_RET_LN(add_handler("asset.subscribe",   on_method_asset_subscribe));
     ERR_RET_LN(add_handler("asset.unsubscribe", on_method_asset_unsubscribe));
+
+    ERR_RET_LN(add_handler("server.subscribe",   on_method_server_subscribe));
 
     return 0;
 }

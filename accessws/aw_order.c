@@ -118,7 +118,7 @@ int order_unsubscribe(uint32_t user_id, nw_ses *ses)
     return 0;
 }
 
-int order_on_update(uint32_t user_id, int event, json_t *order)
+int order_on_update(uint32_t user_id, int event, json_t *order, bool forced)
 {
     const char *market = json_string_value(json_object_get(order, "market"));
     if (market == NULL)
@@ -138,7 +138,7 @@ int order_on_update(uint32_t user_id, int event, json_t *order)
     list_node *node;
     while ((node = list_next(iter)) != NULL) {
         struct sub_unit *unit = node->value;
-        if (strcmp(unit->market, market) == 0) {
+        if (forced || strcmp(unit->market, market) == 0) {
             send_notify(unit->ses, "order.update", params);
         }
     }
@@ -147,4 +147,3 @@ int order_on_update(uint32_t user_id, int event, json_t *order)
 
     return 0;
 }
-

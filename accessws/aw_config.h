@@ -42,6 +42,8 @@
 # define SOURCE_MAX_LEN         32
 # define INTERVAL_MAX_LEN       16
 
+# define GATEWAY_USER_ID        1
+
 # define AW_LISTENER_BIND   "seqpacket@/tmp/accessws_listener.sock"
 
 typedef struct depth_limit_cfg {
