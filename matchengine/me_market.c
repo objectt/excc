@@ -1117,7 +1117,19 @@ int init_redis(void)
     return 0;
 }
 
-int market_register(const char *asset)
+static int set_market_last_price(const char *market, const char *init_price)
+{
+    redisContext *context = redis_sentinel_connect_master(redis);
+    redisReply *reply = redisCmd(context, "SET k:%s:last %s", market, init_price);
+    if (reply == NULL) {
+        return -__LINE__;
+    }
+    freeReplyObject(reply);
+
+    return 0;
+}
+
+int market_register(const char *asset, const char *init_price)
 {
     sds sql = sdsnew("INSERT INTO assets (name) VALUES (");
     sql = sdscatprintf(sql, "'%s')", asset);
@@ -1143,6 +1155,9 @@ int market_register(const char *asset)
     }
     sdsfree(sql);
     mysql_close(conn);
+
+    // Set asset initial(last) price
+    set_market_last_price(asset, init_price);
 
     return ret;
 }

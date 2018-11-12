@@ -1072,7 +1072,7 @@ invalid_argument:
 
 static int on_cmd_market_register(nw_ses *ses, rpc_pkg *pkg, json_t *params)
 {
-    if (json_array_size(params) != 1)
+    if (json_array_size(params) != 2)
         return reply_error_invalid_argument(ses, pkg);
 
     if (!json_is_string(json_array_get(params, 0)))
@@ -1082,7 +1082,11 @@ static int on_cmd_market_register(nw_ses *ses, rpc_pkg *pkg, json_t *params)
     if (market != NULL)
         return reply_error_invalid_argument(ses, pkg);
 
-    if (market_register(market_name) < 0) {
+    if (!json_is_integer(json_array_get(params, 1)))
+        return reply_error_invalid_argument(ses, pkg);
+    const char *init_price = json_string_value(json_array_get(params, 1));
+
+    if (market_register(market_name, init_price) < 0) {
         return reply_error_internal_error(ses, pkg);
     }
 
@@ -1354,7 +1358,8 @@ int init_server(void)
     nw_timer_set(&cache_timer, 60, true, on_cache_timer, NULL);
     nw_timer_start(&cache_timer);
 
-    nw_timer_set(&config_timer, 60, true, on_config_timer, NULL);
+    // XXX Temporary Timer
+    nw_timer_set(&config_timer, 120, true, on_config_timer, NULL);
     nw_timer_start(&config_timer);
 
     return 0;
