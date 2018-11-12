@@ -123,3 +123,22 @@ Build/Run modules in the following order
 3. readhistory
 4. matchengine
 5. marketprice
+6. accessws
+
+**NginX**
+Install NginX and add this to /etc/nginx/nginx.conf
+```
+upstream accessws {
+        server unix:/dev/shm/accessws.sock;   # From accessws.conf
+}
+
+server {
+        listen 8010;  # From accessws.conf
+        location / {
+                proxy_pass http://accessws;
+                proxy_http_version 1.1;
+                proxy_set_header Upgrade $http_upgrade;
+                proxy_set_header Connection "upgrade";
+        }
+}
+```
