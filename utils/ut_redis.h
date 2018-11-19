@@ -8,7 +8,7 @@
 
 # include <stddef.h>
 # include <stdint.h>
-# include <hiredis/hiredis.h>
+# include <../depends/hiredis/hiredis.h>
 
 typedef struct redis_addr {
     char *host;
