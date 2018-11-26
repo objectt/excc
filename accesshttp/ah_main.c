@@ -90,6 +90,7 @@ int main(int argc, char *argv[])
                 dlog_set_no_shift(default_dlog);
             }
 
+            // Worker process
             ret = init_server();
             if (ret < 0) {
                 error(EXIT_FAILURE, errno, "init server fail: %d", ret);
@@ -99,6 +100,7 @@ int main(int argc, char *argv[])
         }
     }
 
+    // Listener process
     process_title_set("%s_listener", __process__);
     daemon(1, 1);
     process_keepalive();

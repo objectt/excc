@@ -29,6 +29,8 @@ static int listener_on_accept(nw_ses *ses, int sockfd, nw_addr_t *peer_addr)
         return -1;
     }
     int worker = rand() % worker_svr->raw_svr->clt_count;
+    log_debug("worker no. %u radomly selected", worker);
+
     nw_ses *curr = worker_svr->raw_svr->clt_list_head;
     for (int i = 0; i < worker && curr; ++i) {
         curr = curr->next;

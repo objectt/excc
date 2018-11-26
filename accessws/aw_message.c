@@ -35,7 +35,7 @@ static int process_orders_message(json_t *msg)
 
 static void on_orders_message(sds message, int64_t offset)
 {
-    log_trace("order message: %s", message);
+    log_trace("order message: %s @ %" PRId64, message, offset);
     json_t *msg = json_loads(message, 0, NULL);
     if (!msg) {
         log_error("invalid balance message: %s", message);
