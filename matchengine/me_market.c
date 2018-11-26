@@ -1120,6 +1120,12 @@ int init_redis(void)
 static int set_market_last_price(const char *market, const char *init_price)
 {
     redisContext *context = redis_sentinel_connect_master(redis);
+    if (context == NULL) {
+        log_error("redis connection failed");
+        return -__LINE__;
+    }
+
+    log_debug("SET k:%s:last %s", market, init_price);
     redisReply *reply = redisCmd(context, "SET k:%s:last %s", market, init_price);
     if (reply == NULL) {
         return -__LINE__;
@@ -1131,6 +1137,8 @@ static int set_market_last_price(const char *market, const char *init_price)
 
 int market_register(const char *asset, const char *init_price)
 {
+    log_debug("registering a new market - %s @ %s", asset, init_price);
+
     sds sql = sdsnew("INSERT INTO assets (name) VALUES (");
     sql = sdscatprintf(sql, "'%s')", asset);
 
@@ -1145,8 +1153,9 @@ int market_register(const char *asset, const char *init_price)
 
     int asset_id = mysql_insert_id(conn);
 
-    sql = sdsnew("INSERT INTO market (stock) VALUES (");
-    sql = sdscatprintf(sql, "%u)", asset_id);
+    sql = sdsnew("INSERT INTO market (stock, init_price) VALUES (");
+    sql = sdscatprintf(sql, "%u,", asset_id);
+    sql = sdscatprintf(sql, "'%s')", init_price);
     ret = mysql_real_query(conn, sql, sdslen(sql));
     if (ret != 0) {
         log_error("exec sql: %s fail: %d %s", sql, mysql_errno(conn), mysql_error(conn));

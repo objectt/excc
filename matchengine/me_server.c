@@ -1072,7 +1072,7 @@ invalid_argument:
 
 static int on_cmd_market_register(nw_ses *ses, rpc_pkg *pkg, json_t *params)
 {
-    if (json_array_size(params) != 2)
+    if (json_array_size(params) > 2)
         return reply_error_invalid_argument(ses, pkg);
 
     if (!json_is_string(json_array_get(params, 0)))
@@ -1082,11 +1082,21 @@ static int on_cmd_market_register(nw_ses *ses, rpc_pkg *pkg, json_t *params)
     if (market != NULL)
         return reply_error_invalid_argument(ses, pkg);
 
-    if (!json_is_integer(json_array_get(params, 1)))
-        return reply_error_invalid_argument(ses, pkg);
-    const char *init_price = json_string_value(json_array_get(params, 1));
+    mpd_t *init_price = mpd_qncopy(mpd_zero);
+    if (json_array_size(params) == 2) {
+        if (!json_is_string(json_array_get(params, 1)))
+            return reply_error_invalid_argument(ses, pkg);
+        init_price = decimal(json_string_value(json_array_get(params, 1)), 8); // XXX default prec_save = 4
+        if (init_price == NULL) {
+            mpd_del(init_price);
+            return reply_error_invalid_argument(ses, pkg);
+        }
+    }
 
-    if (market_register(market_name, init_price) < 0) {
+    const char *init_price_str = mpd_to_sci(init_price, 0);
+    mpd_del(init_price);
+
+    if (market_register(market_name, init_price_str) < 0) {
         return reply_error_internal_error(ses, pkg);
     }
 

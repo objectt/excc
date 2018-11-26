@@ -402,6 +402,12 @@ static int reload_market()
         return -__LINE__;
     }
 
+    redisContext *context = redis_sentinel_connect_master(redis);
+    if (context == NULL) {
+        log_error("redis connection failed");
+        return -__LINE__;
+    }
+
     for (size_t i = 0; i < json_array_size(r); ++i) {
         json_t *item = json_array_get(r, i);
         const char *name = json_string_value(json_object_get(item, "name"));
@@ -416,6 +422,7 @@ static int reload_market()
             json_decref(r);
             return -__LINE__;
         }
+        load_market_last(context, info);
     }
     json_decref(r);
 

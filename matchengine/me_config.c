@@ -55,8 +55,12 @@ static int update_assets_from_db(MYSQL *conn)
 
     MYSQL_RES *result = mysql_store_result(conn);
     int asset_num = mysql_num_rows(result);
-    asset_info_t *new_asset = realloc(settings.assets, sizeof(asset_info_t) * (settings.asset_num + asset_num));
+    if (asset_num == 0) {
+        mysql_free_result(result);
+        return asset_num;
+    }
 
+    asset_info_t *new_asset = realloc(settings.assets, sizeof(asset_info_t) * (settings.asset_num + asset_num));
     if (new_asset == NULL) {
         mysql_free_result(result);
         return -__LINE__;
@@ -78,7 +82,7 @@ static int update_assets_from_db(MYSQL *conn)
 
     settings.asset_num = settings.asset_num + asset_num;
 
-    return 0;
+    return asset_num;
 }
 
 // Load market config from database
@@ -151,11 +155,17 @@ static int update_market_from_db(MYSQL *conn)
 
     MYSQL_RES *result = mysql_store_result(conn);
     int market_num = mysql_num_rows(result);
+    if (market_num == 0) {
+        mysql_free_result(result);
+        return 0;
+    }
+
     market_info_t *new_market = realloc(settings.markets,
                                         sizeof(market_info_t) * (settings.market_num + market_num));
-
-    if (new_market == NULL)
+    if (new_market == NULL) {
+        mysql_free_result(result);
         return -__LINE__;
+    }
 
     settings.markets = new_market;
 
@@ -171,8 +181,8 @@ static int update_market_from_db(MYSQL *conn)
         settings.markets[i].money = strdup(row[3]);
         settings.markets[i].money_prec = strtoul(row[4], NULL, 0);
 
-        update_asset_status(conn, strtoul(row[6], NULL, 0));
-        update_market(&(settings.markets[i])); // update dict_market
+        if (update_market(&(settings.markets[i])) == 0) // update dict_market
+            update_asset_status(conn, strtoul(row[6], NULL, 0));
     }
     mysql_free_result(result);
 
@@ -300,7 +310,7 @@ void update_config()
 {
     log_trace("update_config");
     MYSQL *conn = mysql_connect(&settings.db_sys);
-    update_assets_from_db(conn);
-    update_market_from_db(conn);
+    if (update_assets_from_db(conn) > 0)
+        update_market_from_db(conn);
     mysql_close(conn);
 }
