@@ -1090,13 +1090,18 @@ sds market_status(sds reply)
 
 mpd_t *get_market_last_price(const char *market)
 {
+    mpd_t *last = mpd_qncopy(mpd_zero);
     redisContext *context = redis_sentinel_connect_master(redis);
-    redisReply *reply = redisCmd(context, "GET k:%s:last", market);
-    if (reply == NULL) {
-        return mpd_zero;
+    if (context == NULL) {
+        log_error("redis connection failed");
+        return last;
     }
 
-    mpd_t *last = mpd_qncopy(mpd_zero);
+    redisReply *reply = redisCmd(context, "GET k:%s:last", market);
+    if (reply == NULL) {
+        return last;
+    }
+
     if (reply->type == REDIS_REPLY_STRING) {
         last = decimal(reply->str, 0);
         if (last == NULL) {
@@ -1110,10 +1115,11 @@ mpd_t *get_market_last_price(const char *market)
 
 int init_redis(void)
 {
-    log_debug("init_redis");
     redis = redis_sentinel_create(&settings.redis_mp);
-    if (redis == NULL)
+    if (redis == NULL) {
+        log_debug("init_redis failed");
         return -__LINE__;
+    }
     return 0;
 }
 
@@ -1139,8 +1145,8 @@ int market_register(const char *asset, const char *init_price)
 {
     log_debug("registering a new market - %s @ %s", asset, init_price);
 
-    sds sql = sdsnew("INSERT INTO assets (name) VALUES (");
-    sql = sdscatprintf(sql, "'%s')", asset);
+    sds sql = sdsnew("INSERT INTO assets (name) VALUES (UPPER(");
+    sql = sdscatprintf(sql, "'%s'))", asset);
 
     MYSQL *conn = mysql_connect(&settings.db_sys);
     int ret = mysql_real_query(conn, sql, sdslen(sql));
