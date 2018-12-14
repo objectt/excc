@@ -1099,6 +1099,7 @@ mpd_t *get_market_last_price(const char *market)
 
     redisReply *reply = redisCmd(context, "GET k:%s:last", market);
     if (reply == NULL) {
+        redisFree(context);
         return last;
     }
 
@@ -1109,6 +1110,7 @@ mpd_t *get_market_last_price(const char *market)
         }
     }
     freeReplyObject(reply);
+    redisFree(context);
 
     return last;
 }
@@ -1137,6 +1139,7 @@ static int set_market_last_price(const char *market, const char *init_price)
         return -__LINE__;
     }
     freeReplyObject(reply);
+    redisFree(context);
 
     return 0;
 }
