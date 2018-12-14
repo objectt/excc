@@ -31,6 +31,8 @@ static int do_load_config(json_t *root)
         return -__LINE__;
     }
 
+    ERR_RET_LN(read_cfg_str(root, "webhook", &settings.webhook, NULL));
+
     return 0;
 }
 
@@ -56,4 +58,3 @@ int load_config(const char *path)
 
     return 0;
 }
-

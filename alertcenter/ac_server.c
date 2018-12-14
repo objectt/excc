@@ -3,12 +3,37 @@
  *     History: yang@haipo.me, 2016/04/19, create
  */
 
+# include <curl/curl.h>
 # include "ac_server.h"
 # include "ac_config.h"
 
 static nw_svr *svr;
 static redis_sentinel_t *redis;
 static const char *magic_head = "373d26968a5a2b698045";
+
+static void send_curl_req(const char *msg)
+{
+    CURL *curl = curl_easy_init();
+
+    json_t *request = json_object();
+    json_object_set_new(request, "text", json_string(msg));
+    char *request_data = json_dumps(request, 0);
+    json_decref(request);
+
+    struct curl_slist *chunk = NULL;
+    chunk = curl_slist_append(chunk, "Content-Type: application/json");
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, chunk);
+    curl_easy_setopt(curl, CURLOPT_URL, settings.webhook);
+    curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, (long)(1000));
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, request_data);
+
+    curl_easy_perform(curl);
+
+    free(request_data);
+    curl_easy_cleanup(curl);
+    curl_slist_free_all(chunk);
+}
 
 static int decode_pkg(nw_ses *ses, void *data, size_t max)
 {
@@ -53,6 +78,8 @@ static void on_recv_pkg(nw_ses *ses, void *data, size_t size)
     }
     freeReplyObject(reply);
     redisFree(context);
+
+    send_curl_req(message);
 }
 
 static void on_error_msg(nw_ses *ses, const char *msg)

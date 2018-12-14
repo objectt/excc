@@ -30,6 +30,7 @@ struct settings {
     log_cfg             log;
     nw_svr_cfg          svr;
     redis_sentinel_cfg  redis;
+    char                *webhook;
 };
 
 extern struct settings settings;
