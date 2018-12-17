@@ -249,6 +249,8 @@ int http_svr_stop(http_svr *svr)
 
 int send_http_response(nw_ses *ses, http_response_t *response)
 {
+    http_response_set_header(response, "Access-Control-Allow-Origin", "*");
+
     sds msg = http_response_encode(response);
     if (msg == NULL)
         return -__LINE__;
