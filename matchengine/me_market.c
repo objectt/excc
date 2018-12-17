@@ -1125,7 +1125,7 @@ int init_redis(void)
     return 0;
 }
 
-static int set_market_last_price(const char *market, const char *init_price)
+int set_market_last_price(const char *market, const char *init_price)
 {
     redisContext *context = redis_sentinel_connect_master(redis);
     if (context == NULL) {
@@ -1173,9 +1173,6 @@ int market_register(const char *asset, const char *init_price)
     }
     sdsfree(sql);
     mysql_close(conn);
-
-    // Set asset initial(last) price
-    set_market_last_price(asset, init_price);
 
     return ret;
 }
@@ -1237,7 +1234,6 @@ int add_user_to_market(const char *market, uint32_t user_id)
         memset(&type, 0, sizeof(type));
         type.compare = order_id_compare;
         skiplist_t *order_list = skiplist_create(&type);
-
 
         if (dict_add(m->users, &user_key, order_list) == NULL)
             return -__LINE__;

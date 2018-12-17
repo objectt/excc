@@ -141,7 +141,8 @@ static int update_asset_status(MYSQL *conn, int asset_id)
 static int update_market_from_db(MYSQL *conn)
 {
     sds sql = sdsnew("SELECT A1.name, A1.prec_show AS stock_prec, M.min_amount, "
-                     "A2.name AS currency_name, A2.prec_show AS currency_prec, M.fee_prec, M.stock "
+                     "A2.name AS currency_name, A2.prec_show AS currency_prec, M.fee_prec, "
+                     "M.stock, M.init_price "
                      "FROM market M, assets A1, assets A2 "
                      "WHERE M.stock = A1.id AND M.currency = A2.id AND A1.is_listed = 0;");
     log_trace("exec sql: %s", sql);
@@ -183,6 +184,8 @@ static int update_market_from_db(MYSQL *conn)
 
         if (update_market(&(settings.markets[i])) == 0) // update dict_market
             update_asset_status(conn, strtoul(row[6], NULL, 0));
+
+        set_market_last_price(row[0], row[7]); // SET redis kv
     }
     mysql_free_result(result);
 
