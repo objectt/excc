@@ -8,7 +8,6 @@ CREATE TABLE `assets` (
   `prec_show` tinyint(4) unsigned NOT NULL DEFAULT '4',
   `min_amount` decimal(10,8) unsigned NOT NULL DEFAULT '0.0001',
   `is_listed` tinyint(1) unsigned NOT NULL DEFAULT '0',
-  `listing_date` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `IDX_UNIQUE_ASSET_NAME` (`name`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -18,11 +17,12 @@ CREATE TABLE `market` (
   `stock` int(5) unsigned NOT NULL,
   `currency` int(5) unsigned NOT NULL DEFAULT '1',
   `fee_prec` tinyint(1) unsigned NOT NULL DEFAULT '2',
-  `min_amount` decimal(10,8) unsigned NOT NULL DEFAULT '0.0001',
+  `min_amount` decimal(10,8) unsigned NOT NULL DEFAULT '0',
   `init_price` decimal(10,8) unsigned NOT NULL DEFAULT '0',
   `listing_date` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `delisting_date` timestamp NULL DEFAULT NULL,
-  PRIMARY KEY (`id`)
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `IDX_UNIQUE_ASSET_NAME` (`stock`, `currency`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE `wallet` (
@@ -34,4 +34,4 @@ CREATE TABLE `wallet` (
   PRIMARY KEY (`user_id`,`asset_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-INSERT INTO assets (name, prec_save, prec_show, min_amount, is_listed) VALUES ('CHU', 8, 4, 0, 0);
+INSERT INTO assets (name, prec_save, prec_show, min_amount, is_listed) VALUES ('KRW', 8, 4, 0, 0);
