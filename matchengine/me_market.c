@@ -1169,6 +1169,7 @@ int market_register(const char *asset, const char *init_price)
     if (ret != 0) {
         log_error("exec sql: %s fail: %d %s", sql, mysql_errno(conn), mysql_error(conn));
         sdsfree(sql);
+        mysql_close(conn);
         return -__LINE__;
     }
     sdsfree(sql);
