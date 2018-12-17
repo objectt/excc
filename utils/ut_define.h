@@ -9,6 +9,8 @@
 
 # define MARKET_ORDER_TYPE_LIMIT    1
 # define MARKET_ORDER_TYPE_MARKET   2
+# define MARKET_ORDER_TYPE_AON      3
+# define MARKET_ORDER_TYPE_FOK      4
 
 # define MARKET_ORDER_SIDE_ASK      1
 # define MARKET_ORDER_SIDE_BID      2
