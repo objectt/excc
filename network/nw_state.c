@@ -5,6 +5,7 @@
 
 # include <stdlib.h>
 # include <stdbool.h>
+# include <string.h>
 
 # include "nw_state.h"
 
