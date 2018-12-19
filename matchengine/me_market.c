@@ -161,7 +161,7 @@ json_t *get_order_info(order_t *order)
 
 static int order_put(market_t *m, order_t *order)
 {
-    if (order->type != MARKET_ORDER_TYPE_LIMIT)
+    if (order->type != MARKET_ORDER_TYPE_LIMIT && order->type != MARKET_ORDER_TYPE_AON)
         return -__LINE__;
 
     struct dict_order_key order_key = { .order_id = order->id };
@@ -284,6 +284,7 @@ market_t *market_create(struct market *conf)
     m->money_prec       = conf->money_prec;
     m->fee_prec         = conf->fee_prec;
     m->min_amount       = mpd_qncopy(conf->min_amount);
+    m->last_price       = mpd_qncopy(conf->init_price);
 
     dict_types dt;
     memset(&dt, 0, sizeof(dt));
@@ -369,6 +370,36 @@ static int append_balance_trade_fee(order_t *order, const char *asset, mpd_t *ch
     return ret;
 }
 
+bool check_price_limit(mpd_t *cmp_price, mpd_t *price, const char *pct)
+{
+    if (cmp_price != NULL
+        || mpd_cmp(price, mpd_zero, &mpd_ctx) == 0
+        || mpd_cmp(cmp_price, mpd_zero, &mpd_ctx) == 0
+        || mpd_cmp(price, cmp_price, &mpd_ctx) == 0)
+        return true;
+
+    mpd_t *limit = decimal(pct, 0); // 30%
+    mpd_t *range = mpd_new(&mpd_ctx);
+    mpd_t *diff = mpd_new(&mpd_ctx);
+    mpd_mul(range, cmp_price, limit, &mpd_ctx);
+    mpd_del(limit);
+
+    mpd_sub(diff, price, cmp_price, &mpd_ctx);
+    mpd_abs(diff, diff, &mpd_ctx);
+
+    // Within N% of last price
+    if (mpd_cmp(diff, range, &mpd_ctx) > 0) {
+        mpd_del(range);
+        mpd_del(diff);
+        return false;
+    }
+
+    mpd_del(range);
+    mpd_del(diff);
+
+    return true;
+}
+
 static int execute_limit_ask_order(bool real, market_t *m, order_t *taker)
 {
     mpd_t *price    = mpd_new(&mpd_ctx);
@@ -377,32 +408,6 @@ static int execute_limit_ask_order(bool real, market_t *m, order_t *taker)
     mpd_t *ask_fee  = mpd_new(&mpd_ctx);
     mpd_t *bid_fee  = mpd_new(&mpd_ctx);
     mpd_t *result   = mpd_new(&mpd_ctx);
-
-    mpd_t *last_price = get_market_last_price(m->name);
-
-    if (real &&
-        last_price != NULL &&
-        mpd_cmp(last_price, mpd_zero, &mpd_ctx) != 0 &&
-        mpd_cmp(taker->price, last_price, &mpd_ctx) != 0) {
-        mpd_t *limit = decimal("0.3", 0);
-        mpd_t *range = mpd_new(&mpd_ctx);
-        mpd_t *diff = mpd_new(&mpd_ctx);
-        mpd_mul(range, last_price, limit, &mpd_ctx);
-        mpd_del(limit);
-
-        mpd_sub(diff, taker->price, last_price, &mpd_ctx);
-        mpd_abs(diff, diff, &mpd_ctx);
-
-        // Within 30% of last price
-        if (mpd_cmp(diff, range, &mpd_ctx) > 0) {
-            mpd_del(range);
-            mpd_del(diff);
-            return -4;
-        }
-
-        mpd_del(range);
-        mpd_del(diff);
-    }
 
     skiplist_node *node;
     skiplist_iter *iter = skiplist_get_iterator(m->bids);
@@ -489,6 +494,8 @@ static int execute_limit_ask_order(bool real, market_t *m, order_t *taker)
                 push_order_message(ORDER_EVENT_UPDATE, maker, m);
             }
         }
+
+        mpd_copy(m->last_price, price, &mpd_ctx);
     }
     skiplist_release_iterator(iter);
 
@@ -604,6 +611,8 @@ static int execute_limit_bid_order(bool real, market_t *m, order_t *taker)
                 push_order_message(ORDER_EVENT_UPDATE, maker, m);
             }
         }
+
+        mpd_copy(m->last_price, price, &mpd_ctx);
     }
     skiplist_release_iterator(iter);
 
@@ -1585,8 +1594,9 @@ int market_register(const char *asset, const char *init_price)
 
     int asset_id = mysql_insert_id(conn);
 
-    sql = sdsnew("INSERT INTO market (stock, init_price) VALUES (");
+    sql = sdsnew("INSERT INTO market (stock, init_price, closing_price) VALUES (");
     sql = sdscatprintf(sql, "%u,", asset_id);
+    sql = sdscatprintf(sql, "'%s',", init_price);
     sql = sdscatprintf(sql, "'%s')", init_price);
     ret = mysql_real_query(conn, sql, sdslen(sql));
     if (ret != 0) {

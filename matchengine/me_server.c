@@ -16,7 +16,8 @@
 static rpc_svr *svr;
 static dict_t *dict_cache;
 static nw_timer cache_timer;
-static nw_timer config_timer;
+//static nw_timer config_timer;
+static nw_periodic tmp_periodic;
 
 struct cache_val {
     double      time;
@@ -206,10 +207,18 @@ static int on_cmd_balance_query(nw_ses *ses, rpc_pkg *pkg, json_t *params)
                 mpd_add(total, available, freeze, &mpd_ctx);
                 json_object_set_new_mpd(unit, "total", total);  // Total amount
 
-                mpd_t *last_price = get_market_last_price(asset); // From MP Redis (max 10s delay)
+                mpd_t *last_price = mpd_new(&mpd_ctx);
+                market_t *m = get_market(asset);
+                if (m)
+                    mpd_copy(last_price, m->last_price, &mpd_ctx);
+                else
+                    mpd_copy(last_price, mpd_zero, &mpd_ctx);
+                
+                log_debug("debug - last_price %s %s", asset, mpd_to_sci(last_price, 0));
                 mpd_mul(total, total, last_price, &mpd_ctx);
                 mpd_rescale(total, total, -prec_show, &mpd_ctx);
                 json_object_set_new_mpd(unit, "value", total); // Value in default currency
+                json_object_set_new_mpd(unit, "last_price", last_price);
 
                 json_object_set_new(unit, "blended", json_string("0"));
                 json_object_set_new(unit, "purchased", json_string("0"));
@@ -419,12 +428,26 @@ invalid_argument:
 
 static int on_cmd_order_put(nw_ses *ses, rpc_pkg *pkg, json_t *params)
 {
+    // 1) Validation
     if (json_array_size(params) > 8 || json_array_size(params) < 6)
         return reply_error_invalid_argument(ses, pkg);
 
-    int idx = 0;
+    bool is_price_setter = (pkg->command != CMD_ORDER_PUT_MARKET);
     bool is_maker_candiate = (pkg->command != CMD_ORDER_PUT_MARKET) &&
                              (pkg->command != CMD_ORDER_PUT_FOK);
+    
+    // LIMIT, AON (8)
+    if (is_maker_candiate && json_array_size(params) != 8)
+        return reply_error_invalid_argument(ses, pkg);
+    else if (pkg->command == CMD_ORDER_PUT_MARKET
+        && json_array_size(params) != 6)
+        return reply_error_invalid_argument(ses, pkg);
+    else if (pkg->command == CMD_ORDER_PUT_FOK
+        && json_array_size(params) != 7)
+        return reply_error_invalid_argument(ses, pkg);
+
+    // 2) Parse
+    int idx = 0;
 
     // user_id
     if (!json_is_integer(json_array_get(params, idx)))
@@ -447,9 +470,9 @@ static int on_cmd_order_put(nw_ses *ses, rpc_pkg *pkg, json_t *params)
         return reply_error_invalid_argument(ses, pkg);
 
     mpd_t *amount;
-    mpd_t *price;
+    mpd_t *price = mpd_qncopy(mpd_zero);
     mpd_t *taker_fee;
-    mpd_t *maker_fee = mpd_new(&mpd_ctx);
+    mpd_t *maker_fee = mpd_qncopy(mpd_zero);
 
     // amount
     if (!json_is_string(json_array_get(params, idx)))
@@ -459,9 +482,10 @@ static int on_cmd_order_put(nw_ses *ses, rpc_pkg *pkg, json_t *params)
         goto invalid_argument;
 
     // price - Non-Market
-    if (pkg->command != CMD_ORDER_PUT_MARKET) {
+    if (is_price_setter) {
         if (!json_is_string(json_array_get(params, idx)))
             goto invalid_argument;
+        mpd_del(price);
         price = decimal(json_string_value(json_array_get(params, idx++)), market->money_prec);
         if (price == NULL || mpd_cmp(price, mpd_zero, &mpd_ctx) <= 0)
             goto invalid_argument;
@@ -479,11 +503,15 @@ static int on_cmd_order_put(nw_ses *ses, rpc_pkg *pkg, json_t *params)
     if (is_maker_candiate) {
         if (!json_is_string(json_array_get(params, idx)))
             goto invalid_argument;
+        mpd_del(maker_fee);
         maker_fee = decimal(json_string_value(json_array_get(params, idx++)), market->fee_prec);
         if (maker_fee == NULL || mpd_cmp(maker_fee, mpd_zero, &mpd_ctx) < 0 ||
             mpd_cmp(maker_fee, mpd_one, &mpd_ctx) >= 0)
             goto invalid_argument;
     }
+
+    if (json_array_size(params) != idx + 1)
+        goto invalid_argument;
 
     // source
     if (!json_is_string(json_array_get(params, idx)))
@@ -495,6 +523,15 @@ static int on_cmd_order_put(nw_ses *ses, rpc_pkg *pkg, json_t *params)
     int ret;
     char *oper;
     json_t *result = NULL;
+    
+    // 3) Price Limits
+    if (real && is_price_setter) {
+        if (!check_price_limit(m->last_price, price, "0.3")
+            || !check_price_limit(m->closing_price, price, "0.5")) {
+            ret = -4;
+            goto invalid_order;
+        }
+    }
 
     switch(pkg->command) {
         case CMD_ORDER_PUT_LIMIT:
@@ -521,6 +558,7 @@ static int on_cmd_order_put(nw_ses *ses, rpc_pkg *pkg, json_t *params)
             goto invalid_argument;
     }
 
+invalid_order:
     mpd_del(amount);
     mpd_del(price);
     mpd_del(taker_fee);
@@ -530,9 +568,9 @@ static int on_cmd_order_put(nw_ses *ses, rpc_pkg *pkg, json_t *params)
         return reply_error(ses, pkg, 10, "balance not enough");
     else if (ret == -2)
         return reply_error(ses, pkg, 11, "amount too small");
-    } else if (ret == -4) {
+    else if (ret == -4)
         return reply_error(ses, pkg, 12, "price out of range");
-    } else if (ret < 0) {
+    else if (ret < 0) {
         log_fatal("market_put_limit_order fail: %d", ret);
         return reply_error_internal_error(ses, pkg);
     }
@@ -972,6 +1010,7 @@ static int on_cmd_market_list(nw_ses *ses, rpc_pkg *pkg, json_t *params)
         json_object_set_new(market, "stock_prec", json_integer(settings.markets[i].stock_prec));
         json_object_set_new(market, "money_prec", json_integer(settings.markets[i].money_prec));
         json_object_set_new_mpd(market, "min_amount", settings.markets[i].min_amount);
+        json_object_set_new_mpd(market, "closing_price", settings.markets[i].closing_price);
         json_array_append_new(result, market);
     }
 
@@ -1283,8 +1322,14 @@ static void on_cache_timer(nw_timer *timer, void *privdata)
     dict_clear(dict_cache);
 }
 
-static void on_config_timer(nw_timer *timer, void *data)
+//static void on_config_timer(nw_timer *timer, void *data)
+//{
+//    update_config();
+//}
+
+static void on_tmp_periodic(nw_periodic *periodic, void *data)
 {
+    log_debug("on_tmp_periodic");
     update_config();
 }
 
@@ -1319,8 +1364,12 @@ int init_server(void)
     nw_timer_start(&cache_timer);
 
     // XXX Temporary Timer
-    nw_timer_set(&config_timer, 120, true, on_config_timer, NULL);
-    nw_timer_start(&config_timer);
+    //nw_timer_set(&config_timer, 120, true, on_config_timer, NULL);
+    //nw_timer_start(&config_timer);
+
+    // XXX Temporary Timer
+    nw_periodic_set(&tmp_periodic, 1545067800, 120, on_tmp_periodic, NULL);
+    nw_periodic_start(&tmp_periodic);
 
     return 0;
 }

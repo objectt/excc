@@ -21,6 +21,7 @@
 # include "nw_clt.h"
 # include "nw_job.h"
 # include "nw_timer.h"
+# include "nw_periodic.h"
 
 # include "ut_log.h"
 # include "ut_sds.h"
@@ -63,6 +64,8 @@ typedef struct market {
     int                 stock_prec;
     int                 money_prec;
     mpd_t               *min_amount;
+    mpd_t               *init_price;
+    mpd_t               *closing_price;
 } market_info_t;
 
 struct settings {

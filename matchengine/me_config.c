@@ -14,7 +14,6 @@ struct settings settings;
 static int load_assets_from_db(MYSQL *conn)
 {
     sds sql = sdsnew("SELECT id, name, prec_save, prec_show FROM assets WHERE id = 1 OR is_listed = 1");
-    log_trace("exec sql: %s", sql);
     int ret = mysql_real_query(conn, sql, sdslen(sql));
     if (ret != 0) {
         log_error("exec sql: %s fail: %d %s", sql, mysql_errno(conn), mysql_error(conn));
@@ -89,10 +88,10 @@ static int update_assets_from_db(MYSQL *conn)
 static int load_market_from_db(MYSQL *conn)
 {
     sds sql = sdsnew("SELECT A1.name, A1.prec_show AS stock_prec, M.min_amount, "
-                     "A2.name AS currency_name, A2.prec_show AS currency_prec, M.fee_prec "
+                     "A2.name AS currency_name, A2.prec_show AS currency_prec, "
+                     "M.fee_prec, M.init_price, M.closing_price "
                      "FROM market M, assets A1, assets A2 "
                      "WHERE M.stock = A1.id AND M.currency = A2.id AND A1.is_listed = 1;");
-    log_trace("exec sql: %s", sql);
     int ret = mysql_real_query(conn, sql, sdslen(sql));
     if (ret != 0) {
         log_error("exec sql: %s fail: %d %s", sql, mysql_errno(conn), mysql_error(conn));
@@ -115,6 +114,8 @@ static int load_market_from_db(MYSQL *conn)
         settings.markets[i].stock_prec = strtoul(row[1], NULL, 0);
         settings.markets[i].money = strdup(row[3]);
         settings.markets[i].money_prec = strtoul(row[4], NULL, 0);
+        settings.markets[i].init_price = decimal(row[6], 0);
+        settings.markets[i].closing_price = decimal(row[7], 0);
     }
     mysql_free_result(result);
 
@@ -142,10 +143,9 @@ static int update_market_from_db(MYSQL *conn)
 {
     sds sql = sdsnew("SELECT A1.name, A1.prec_show AS stock_prec, M.min_amount, "
                      "A2.name AS currency_name, A2.prec_show AS currency_prec, M.fee_prec, "
-                     "M.stock, M.init_price "
+                     "M.stock, M.init_price, M.closing_price "
                      "FROM market M, assets A1, assets A2 "
                      "WHERE M.stock = A1.id AND M.currency = A2.id AND A1.is_listed = 0;");
-    log_trace("exec sql: %s", sql);
     int ret = mysql_real_query(conn, sql, sdslen(sql));
     if (ret != 0) {
         log_error("exec sql: %s fail: %d %s", sql, mysql_errno(conn), mysql_error(conn));
@@ -181,11 +181,13 @@ static int update_market_from_db(MYSQL *conn)
         settings.markets[i].stock_prec = strtoul(row[1], NULL, 0);
         settings.markets[i].money = strdup(row[3]);
         settings.markets[i].money_prec = strtoul(row[4], NULL, 0);
+        settings.markets[i].init_price = decimal(row[7], 0);
+        settings.markets[i].closing_price = decimal(row[8], 0);
 
         if (update_market(&(settings.markets[i])) == 0) // update dict_market
             update_asset_status(conn, strtoul(row[6], NULL, 0));
 
-        set_market_last_price(row[0], row[7]); // SET redis kv
+        set_market_last_price(row[0], row[8]); // SET redis kv
     }
     mysql_free_result(result);
 
@@ -311,7 +313,7 @@ int init_config(const char *path)
 
 void update_config()
 {
-    log_trace("update_config");
+    log_debug("update_config");
     MYSQL *conn = mysql_connect(&settings.db_sys);
     if (update_assets_from_db(conn) > 0)
         update_market_from_db(conn);
