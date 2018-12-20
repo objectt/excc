@@ -21,6 +21,7 @@
 # include "nw_clt.h"
 # include "nw_job.h"
 # include "nw_timer.h"
+# include "nw_periodic.h"
 
 # include "ut_log.h"
 # include "ut_sds.h"

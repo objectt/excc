@@ -16,7 +16,6 @@
 static rpc_svr *svr;
 static dict_t *dict_cache;
 static nw_timer cache_timer;
-//static nw_timer config_timer;
 static nw_periodic tmp_periodic;
 
 struct cache_val {
@@ -525,9 +524,9 @@ static int on_cmd_order_put(nw_ses *ses, rpc_pkg *pkg, json_t *params)
     json_t *result = NULL;
     
     // 3) Price Limits
-    if (real && is_price_setter) {
-        if (!check_price_limit(m->last_price, price, "0.3")
-            || !check_price_limit(m->closing_price, price, "0.5")) {
+    if (is_price_setter) {
+        if (!check_price_limit(market->last_price, price, "0.3")
+            || !check_price_limit(market->closing_price, price, "0.5")) {
             ret = -4;
             goto invalid_order;
         }
@@ -1010,6 +1009,7 @@ static int on_cmd_market_list(nw_ses *ses, rpc_pkg *pkg, json_t *params)
         json_object_set_new(market, "stock_prec", json_integer(settings.markets[i].stock_prec));
         json_object_set_new(market, "money_prec", json_integer(settings.markets[i].money_prec));
         json_object_set_new_mpd(market, "min_amount", settings.markets[i].min_amount);
+        json_object_set_new_mpd(market, "init_price", settings.markets[i].init_price);
         json_object_set_new_mpd(market, "closing_price", settings.markets[i].closing_price);
         json_array_append_new(result, market);
     }
@@ -1322,14 +1322,8 @@ static void on_cache_timer(nw_timer *timer, void *privdata)
     dict_clear(dict_cache);
 }
 
-//static void on_config_timer(nw_timer *timer, void *data)
-//{
-//    update_config();
-//}
-
 static void on_tmp_periodic(nw_periodic *periodic, void *data)
 {
-    log_debug("on_tmp_periodic");
     update_config();
 }
 
@@ -1362,10 +1356,6 @@ int init_server(void)
 
     nw_timer_set(&cache_timer, 60, true, on_cache_timer, NULL);
     nw_timer_start(&cache_timer);
-
-    // XXX Temporary Timer
-    //nw_timer_set(&config_timer, 120, true, on_config_timer, NULL);
-    //nw_timer_start(&config_timer);
 
     // XXX Temporary Timer
     nw_periodic_set(&tmp_periodic, 1545067800, 120, on_tmp_periodic, NULL);

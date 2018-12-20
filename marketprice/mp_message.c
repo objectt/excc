@@ -43,7 +43,7 @@ static int64_t  last_offset;
 static nw_timer market_timer;
 static nw_timer clear_timer;
 static nw_timer redis_timer;
-static nw_timer config_timer;
+static nw_periodic config_periodic;
 
 static uint32_t dict_sds_key_hash_func(const void *key)
 {
@@ -368,7 +368,7 @@ static int init_market(void)
     for (size_t i = 0; i < json_array_size(r); ++i) {
         json_t *item = json_array_get(r, i);
         const char *name = json_string_value(json_object_get(item, "name"));
-        log_stderr("initalize market - %s", name);
+        log_debug("loading market - %s", name);
 
         struct market_info *info = create_market(name);
         if (info == NULL) {
@@ -398,31 +398,33 @@ static int reload_market()
 {
     json_t *r = send_market_list_req(); // market list from MatchEngine
     if (r == NULL) {
-        log_error("get market list from MatchEngine failed");
+        log_fatal("market list from MatchEngine failed");
         return -__LINE__;
     }
 
     redisContext *context = redis_sentinel_connect_master(redis);
     if (context == NULL) {
-        log_error("redis connection failed");
+        log_fatal("redis connection failed");
         return -__LINE__;
     }
 
     for (size_t i = 0; i < json_array_size(r); ++i) {
         json_t *item = json_array_get(r, i);
         const char *name = json_string_value(json_object_get(item, "name"));
+        const char *init_price = json_string_value(json_object_get(item, "init_price"));
 
         if (market_exist(name))
             continue;
 
-        log_debug("initalize a newly added market - %s", name);
+        log_debug("initializing a new market - %s", name);
         struct market_info *info = create_market(name);
         if (info == NULL) {
-            log_error("create market %s fail", name);
+            log_fatal("create_market %s failed", name);
             json_decref(r);
             return -__LINE__;
         }
-        load_market_last(context, info);
+
+        info->last = decimal(init_price, 0);
     }
     json_decref(r);
 
@@ -829,8 +831,9 @@ static void clear_kline(void)
     dict_release_iterator(iter);
 }
 
-static void on_config_timer(nw_timer *timer, void *privdata)
+static void on_config_periodic(nw_periodic *periodic, void *privdata)
 {
+    log_debug("on_config_periodic");
     reload_market();
 }
 
@@ -946,8 +949,8 @@ int init_message(void)
     nw_timer_start(&market_timer);
 
     // XXX Temporary
-    nw_timer_set(&config_timer, 60, true, on_config_timer, NULL);
-    nw_timer_start(&config_timer);
+    nw_periodic_set(&config_periodic, 1545067800, 150, on_config_periodic, NULL);
+    nw_periodic_start(&config_periodic);
 
     nw_timer_set(&clear_timer, 3600, true, on_clear_timer, NULL);
     nw_timer_start(&clear_timer);

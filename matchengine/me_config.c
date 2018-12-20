@@ -186,8 +186,6 @@ static int update_market_from_db(MYSQL *conn)
 
         if (update_market(&(settings.markets[i])) == 0) // update dict_market
             update_asset_status(conn, strtoul(row[6], NULL, 0));
-
-        set_market_last_price(row[0], row[8]); // SET redis kv
     }
     mysql_free_result(result);
 
@@ -300,13 +298,6 @@ int init_config(const char *path)
     ret = load_assets_from_db(conn);
     ret = load_market_from_db(conn);
     mysql_close(conn);
-
-    // For market last price
-    ret = init_redis();
-    if (ret < 0) {
-        printf("redis connection failed");
-        return -__LINE__;
-    }
 
     return 0;
 }

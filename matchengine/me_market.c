@@ -13,8 +13,6 @@
 uint64_t order_id_start;
 uint64_t deals_id_start;
 
-static redis_sentinel_t *redis;
-
 struct dict_user_key {
     uint32_t    user_id;
 };
@@ -1518,62 +1516,6 @@ sds market_status(sds reply)
     reply = sdscatprintf(reply, "order last ID: %"PRIu64"\n", order_id_start);
     reply = sdscatprintf(reply, "deals last ID: %"PRIu64"\n", deals_id_start);
     return reply;
-}
-
-mpd_t *get_market_last_price(const char *market)
-{
-    mpd_t *last = mpd_qncopy(mpd_zero);
-    redisContext *context = redis_sentinel_connect_master(redis);
-    if (context == NULL) {
-        log_error("redis connection failed");
-        return last;
-    }
-
-    redisReply *reply = redisCmd(context, "GET k:%s:last", market);
-    if (reply == NULL) {
-        redisFree(context);
-        return last;
-    }
-
-    if (reply->type == REDIS_REPLY_STRING) {
-        last = decimal(reply->str, 0);
-        if (last == NULL) {
-            mpd_copy(last, mpd_zero, &mpd_ctx);
-        }
-    }
-    freeReplyObject(reply);
-    redisFree(context);
-
-    return last;
-}
-
-int init_redis(void)
-{
-    redis = redis_sentinel_create(&settings.redis_mp);
-    if (redis == NULL) {
-        log_debug("init_redis failed");
-        return -__LINE__;
-    }
-    return 0;
-}
-
-int set_market_last_price(const char *market, const char *init_price)
-{
-    redisContext *context = redis_sentinel_connect_master(redis);
-    if (context == NULL) {
-        log_error("redis connection failed");
-        return -__LINE__;
-    }
-
-    log_debug("SET k:%s:last %s", market, init_price);
-    redisReply *reply = redisCmd(context, "SET k:%s:last %s", market, init_price);
-    if (reply == NULL) {
-        return -__LINE__;
-    }
-    freeReplyObject(reply);
-    redisFree(context);
-
-    return 0;
 }
 
 int market_register(const char *asset, const char *init_price)
