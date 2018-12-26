@@ -12,7 +12,7 @@ static dict_t *dict_asset;
 struct asset_type {
     int prec_save;
     int prec_show;
-    int id;
+    uint32_t id;
 };
 
 static uint32_t asset_dict_hash_function(const void *key)
@@ -166,7 +166,7 @@ int asset_prec_show(const char *asset)
     return at ? at->prec_show: -1;
 }
 
-int asset_idx(const char *asset)
+uint32_t asset_idx(const char *asset)
 {
     struct asset_type *at = get_asset_type(asset);
     return at->id;
@@ -414,7 +414,7 @@ json_t *get_user_balance_wallet(uint32_t user_id)
     return records;
 }
 
-int update_user_balance_wallet(uint32_t user_id, int asset_id, mpd_t *price, mpd_t *change)
+int update_user_balance_wallet(uint32_t user_id, uint32_t asset_id, mpd_t *price, mpd_t *change)
 {
     mpd_t *purchased = mpd_new(&mpd_ctx);
     mpd_mul(purchased, price, change, &mpd_ctx);

@@ -24,7 +24,7 @@ int init_balance(void);
 bool asset_exist(const char *asset);
 int asset_prec(const char *asset);
 int asset_prec_show(const char *asset);
-int asset_idx(const char *asset);
+uint32_t asset_idx(const char *asset);
 
 mpd_t *balance_get(uint32_t user_id, uint32_t type, const char *asset);
 void   balance_del(uint32_t user_id, uint32_t type, const char *asset);
@@ -38,7 +38,7 @@ mpd_t *balance_total(uint32_t user_id, const char *asset);
 int balance_status(const char *asset, mpd_t *total, size_t *available_count, mpd_t *available, size_t *freeze_count, mpd_t *freeze, size_t *total_count);
 
 json_t *get_user_balance_wallet(uint32_t user_id);
-int update_user_balance_wallet(uint32_t user_id, int asset_id, mpd_t *price, mpd_t *change);
+int update_user_balance_wallet(uint32_t user_id, uint32_t asset_id, mpd_t *price, mpd_t *change);
 
 void update_asset(asset_info_t *asset);
 
