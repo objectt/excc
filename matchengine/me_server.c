@@ -16,7 +16,6 @@
 static rpc_svr *svr;
 static dict_t *dict_cache;
 static nw_timer cache_timer;
-static nw_periodic tmp_periodic;
 
 struct cache_val {
     double      time;
@@ -212,8 +211,7 @@ static int on_cmd_balance_query(nw_ses *ses, rpc_pkg *pkg, json_t *params)
                     mpd_copy(last_price, m->last_price, &mpd_ctx);
                 else
                     mpd_copy(last_price, mpd_zero, &mpd_ctx);
-                
-                log_debug("debug - last_price %s %s", asset, mpd_to_sci(last_price, 0));
+
                 mpd_mul(total, total, last_price, &mpd_ctx);
                 mpd_rescale(total, total, -prec_show, &mpd_ctx);
                 json_object_set_new_mpd(unit, "value", total); // Value in default currency
@@ -434,7 +432,7 @@ static int on_cmd_order_put(nw_ses *ses, rpc_pkg *pkg, json_t *params)
     bool is_price_setter = (pkg->command != CMD_ORDER_PUT_MARKET);
     bool is_maker_candiate = (pkg->command != CMD_ORDER_PUT_MARKET) &&
                              (pkg->command != CMD_ORDER_PUT_FOK);
-    
+
     // LIMIT, AON (8)
     if (is_maker_candiate && json_array_size(params) != 8)
         return reply_error_invalid_argument(ses, pkg);
@@ -522,7 +520,7 @@ static int on_cmd_order_put(nw_ses *ses, rpc_pkg *pkg, json_t *params)
     int ret;
     char *oper;
     json_t *result = NULL;
-    
+
     // 3) Price Limits
     if (is_price_setter) {
         if (!check_price_limit(market->last_price, price, "0.3")
@@ -1322,11 +1320,6 @@ static void on_cache_timer(nw_timer *timer, void *privdata)
     dict_clear(dict_cache);
 }
 
-static void on_tmp_periodic(nw_periodic *periodic, void *data)
-{
-    update_config();
-}
-
 int init_server(void)
 {
     rpc_svr_type type;
@@ -1356,10 +1349,6 @@ int init_server(void)
 
     nw_timer_set(&cache_timer, 60, true, on_cache_timer, NULL);
     nw_timer_start(&cache_timer);
-
-    // XXX Temporary Timer
-    nw_periodic_set(&tmp_periodic, 1545067800, 120, on_tmp_periodic, NULL);
-    nw_periodic_start(&tmp_periodic);
 
     return 0;
 }

@@ -1,5 +1,5 @@
 /*
- * Description: 
+ * Description:
  *     History: yang@haipo.me, 2017/03/16, create
  */
 
@@ -9,6 +9,14 @@
 # include "me_trade.h"
 
 struct settings settings;
+
+static nw_job *job;
+static nw_periodic daily_periodic;
+static nw_periodic min_periodic;
+
+struct job_request {
+    void (*callback_fn)(MYSQL*);
+};
 
 // Load assets config from database
 static int load_assets_from_db(MYSQL *conn)
@@ -65,21 +73,29 @@ static int update_assets_from_db(MYSQL *conn)
         return -__LINE__;
     }
 
+    int asset_cnt = settings.asset_num;
     settings.assets = new_asset;
 
-    log_debug("update_assets_from_db : %u new assets found", asset_num);
+    log_debug("%u new assets found", asset_num);
     for (size_t i = settings.asset_num; i < settings.asset_num + asset_num; ++i) {
         MYSQL_ROW row = mysql_fetch_row(result);
+
+        if (asset_exist(strdup(row[1])))
+            continue;
 
         settings.assets[i].id = strtoul(row[0], NULL, 0);
         settings.assets[i].name = strdup(row[1]);
         settings.assets[i].prec_save = strtoul(row[2], NULL, 0);
         settings.assets[i].prec_show = strtoul(row[3], NULL, 0);
+
         update_asset(&(settings.assets[i])); // update dict_asset
+        asset_cnt++;
+
+        log_debug("successfully registered a new asset - %s", settings.assets[i].name);
     }
     mysql_free_result(result);
 
-    settings.asset_num = settings.asset_num + asset_num;
+    settings.asset_num = asset_cnt;
 
     return asset_num;
 }
@@ -89,7 +105,7 @@ static int load_market_from_db(MYSQL *conn)
 {
     sds sql = sdsnew("SELECT A1.name, A1.prec_show AS stock_prec, M.min_amount, "
                      "A2.name AS currency_name, A2.prec_show AS currency_prec, "
-                     "M.fee_prec, M.init_price, M.closing_price "
+                     "M.fee_prec, M.init_price, M.closing_price, M.id "
                      "FROM market M, assets A1, assets A2 "
                      "WHERE M.stock = A1.id AND M.currency = A2.id AND A1.is_listed = 1;");
     int ret = mysql_real_query(conn, sql, sdslen(sql));
@@ -106,6 +122,7 @@ static int load_market_from_db(MYSQL *conn)
     for (size_t i = 0; i < settings.market_num; ++i) {
         MYSQL_ROW row = mysql_fetch_row(result);
 
+        settings.markets[i].id = strtoul(row[8], NULL, 0);
         settings.markets[i].name = strdup(row[0]);
         settings.markets[i].fee_prec = strtoul(row[5], NULL, 0);
         settings.markets[i].min_amount = decimal(row[2], 0);
@@ -122,7 +139,7 @@ static int load_market_from_db(MYSQL *conn)
     return 0;
 }
 
-static int update_asset_status(MYSQL *conn, int asset_id) 
+static int update_asset_status(MYSQL *conn, int asset_id)
 {
     sds sql = sdsempty();
     sql = sdscatprintf(sql, "UPDATE assets SET is_listed = 1 WHERE id = %d", asset_id);
@@ -142,8 +159,8 @@ static int update_asset_status(MYSQL *conn, int asset_id)
 static int update_market_from_db(MYSQL *conn)
 {
     sds sql = sdsnew("SELECT A1.name, A1.prec_show AS stock_prec, M.min_amount, "
-                     "A2.name AS currency_name, A2.prec_show AS currency_prec, M.fee_prec, "
-                     "M.stock, M.init_price, M.closing_price "
+                     "A2.name AS currency_name, A2.prec_show AS currency_prec, "
+                     "M.fee_prec, M.init_price, M.closing_price, M.id, M.stock "
                      "FROM market M, assets A1, assets A2 "
                      "WHERE M.stock = A1.id AND M.currency = A2.id AND A1.is_listed = 0;");
     int ret = mysql_real_query(conn, sql, sdslen(sql));
@@ -168,11 +185,17 @@ static int update_market_from_db(MYSQL *conn)
         return -__LINE__;
     }
 
+    int market_cnt = settings.market_num;
     settings.markets = new_market;
 
+    log_debug("%u new stocks found", market_num);
     for (size_t i = settings.market_num; i < settings.market_num + market_num; ++i) {
         MYSQL_ROW row = mysql_fetch_row(result);
 
+        if (get_market(strdup(row[0])))
+            continue;
+
+        settings.markets[i].id = strtoul(row[8], NULL, 0);
         settings.markets[i].name = strdup(row[0]);
         settings.markets[i].fee_prec = strtoul(row[5], NULL, 0);
         settings.markets[i].min_amount = decimal(row[2], 0);
@@ -181,17 +204,21 @@ static int update_market_from_db(MYSQL *conn)
         settings.markets[i].stock_prec = strtoul(row[1], NULL, 0);
         settings.markets[i].money = strdup(row[3]);
         settings.markets[i].money_prec = strtoul(row[4], NULL, 0);
-        settings.markets[i].init_price = decimal(row[7], 0);
-        settings.markets[i].closing_price = decimal(row[8], 0);
+        settings.markets[i].init_price = decimal(row[6], 0);
+        settings.markets[i].closing_price = decimal(row[7], 0);
 
         if (update_market(&(settings.markets[i])) == 0) // update dict_market
-            update_asset_status(conn, strtoul(row[6], NULL, 0));
+            update_asset_status(conn, strtoul(row[9], NULL, 0));
+
+        market_cnt++;
+
+        log_debug("successfully registered a new stock - %s", settings.markets[i].name);
     }
     mysql_free_result(result);
 
-    settings.market_num = settings.market_num + market_num;
+    settings.market_num = market_cnt;
 
-    return 0;
+    return market_num;
 }
 
 static int read_config_from_json(json_t *root)
@@ -242,12 +269,6 @@ static int read_config_from_json(json_t *root)
         printf("load history db config fail: %d\n", ret);
         return -__LINE__;
     }
-    ret = load_cfg_redis_sentinel(root, "redis_mp", &settings.redis_mp);
-    if (ret < 0) {
-        printf("load redis config fail: %d\n", ret);
-        return -__LINE__;
-    }
-
     ret = read_cfg_str(root, "brokers", &settings.brokers, NULL);
     if (ret < 0) {
         printf("load brokers fail: %d\n", ret);
@@ -272,6 +293,74 @@ static int read_config_from_json(json_t *root)
     ERR_RET_LN(read_cfg_real(root, "cache_timeout", &settings.cache_timeout, false, 0.45));
 
     return 0;
+}
+
+static void load_new_assets_market(MYSQL *conn)
+{
+    if (update_assets_from_db(conn) > 0)
+        update_market_from_db(conn);
+}
+
+static void update_market_closing_price(MYSQL *conn)
+{
+    for (size_t i = 0; i < settings.market_num; ++i) {
+        market_t *m = get_market(settings.markets[i].name);
+        sds sql = sdsempty();
+
+        mpd_copy(settings.markets[i].closing_price, m->last_price, &mpd_ctx);
+        mpd_copy(m->closing_price, m->last_price, &mpd_ctx);
+        char *closing_price = mpd_to_sci(m->closing_price, 0);
+
+        sql = sdscatprintf(sql, "UPDATE market SET closing_price = '%s', "
+                                "update_date = CURRENT_TIMESTAMP() WHERE id = %d",
+                           closing_price, settings.markets[i].id);
+
+        int ret = mysql_real_query(conn, sql, sdslen(sql));
+        if (ret != 0) {
+            log_fatal("exec sql: %s fail: %d %s", sql, mysql_errno(conn), mysql_error(conn));
+            sdsfree(sql);
+            break;
+        }
+        sdsfree(sql);
+    }
+}
+
+static void *on_job_init(void)
+{
+    return mysql_connect(&settings.db_sys);
+}
+
+static void on_job(nw_job_entry *entry, void *privdata)
+{
+    MYSQL *conn = privdata;
+    ((struct job_request*)entry->request)->callback_fn(conn);
+}
+
+static void on_job_cleanup(nw_job_entry *entry)
+{
+    struct job_request *req = entry->request;
+    free(req);
+}
+
+static void on_job_release(void *privdata)
+{
+    mysql_close(privdata);
+}
+
+static void on_min_periodic(nw_periodic *p, void *data)
+{
+    struct job_request *req = malloc(sizeof(struct job_request));
+    memset(req, 0, sizeof(struct job_request));
+    req->callback_fn = load_new_assets_market;
+    nw_job_add(job, 0, req);
+}
+
+static void on_daily_periodic(nw_periodic *periodic, void *data)
+{
+    struct job_request *req = malloc(sizeof(struct job_request));
+    memset(req, 0, sizeof(struct job_request));
+    req->callback_fn = update_market_closing_price;
+    nw_job_add(job, 0, req);
 }
 
 int init_config(const char *path)
@@ -302,11 +391,26 @@ int init_config(const char *path)
     return 0;
 }
 
-void update_config()
+int init_job()
 {
-    log_debug("update_config");
-    MYSQL *conn = mysql_connect(&settings.db_sys);
-    if (update_assets_from_db(conn) > 0)
-        update_market_from_db(conn);
-    mysql_close(conn);
+    nw_job_type type;
+    memset(&type, 0, sizeof(type));
+    type.on_init    = on_job_init;
+    type.on_job     = on_job;
+    type.on_cleanup = on_job_cleanup;
+    type.on_release = on_job_release;
+
+    job = nw_job_create(&type, 1);
+    if (job == NULL)
+        return -__LINE__;
+
+    // 9AM KST
+    nw_periodic_set(&daily_periodic, 1545645600, 1800, on_daily_periodic, NULL);
+    nw_periodic_start(&daily_periodic);
+
+    // Every minute
+    nw_periodic_set(&min_periodic, 1545645600, 60, on_min_periodic, NULL);
+    nw_periodic_start(&min_periodic);
+
+    return 0;
 }

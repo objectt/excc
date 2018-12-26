@@ -41,15 +41,7 @@
         "pass": "pass",
         "name": "trade_history"
     },
-    "redis_mp": {
-        "name": "mymaster"
-        "addr": [
-            "127.0.0.1:26381",
-            "127.0.0.1:26382",
-            "127.0.0.1:26383"
-        ]
-    },
     "brokers": "127.0.0.1:9092",
     "slice_interval": 3600,
-    "slice_keeptime": 259200 
+    "slice_keeptime": 259200
 }

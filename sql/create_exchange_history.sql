@@ -1,5 +1,6 @@
-CREATE DATABASE exchange_history;
-USE exhchange_history;
+DROP DATABASE trade_history;
+CREATE DATABASE trade_history;
+USE trade_history;
 
 CREATE TABLE `balance_history_example` (
     `id`            BIGINT UNSIGNED NOT NULL PRIMARY KEY AUTO_INCREMENT,

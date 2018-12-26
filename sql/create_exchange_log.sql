@@ -1,5 +1,6 @@
-CREATE DATABASE exchange_log;
-USE exchange_log;
+DROP DATABASE trade_log;
+CREATE DATABASE trade_log;
+USE trade_log;
 
 CREATE TABLE `slice_balance_example` (
     `id`            INT UNSIGNED NOT NULL PRIMARY KEY AUTO_INCREMENT,

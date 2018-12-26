@@ -1,5 +1,5 @@
 /*
- * Description: 
+ * Description:
  *     History: yang@haipo.me, 2017/03/16, create
  */
 
@@ -50,7 +50,7 @@
 # define MAX_PENDING_MESSAGE    1000
 
 typedef struct asset {
-    int                 id;
+    uint32_t            id;
     char                *name;
     int                 prec_save;
     int                 prec_show;
@@ -66,6 +66,7 @@ typedef struct market {
     mpd_t               *min_amount;
     mpd_t               *init_price;
     mpd_t               *closing_price;
+    uint32_t            id;
 } market_info_t;
 
 struct settings {
@@ -78,7 +79,6 @@ struct settings {
     mysql_cfg           db_log;
     mysql_cfg           db_history;
     mysql_cfg           db_sys;
-    redis_sentinel_cfg  redis_mp;
 
     size_t              asset_num;
     struct asset        *assets;
@@ -96,6 +96,6 @@ struct settings {
 extern struct settings settings;
 
 int init_config(const char *path);
-void update_config();
+int init_job();
 
 # endif

@@ -1,5 +1,5 @@
 /*
- * Description: 
+ * Description:
  *     History: yang@haipo.me, 2017/03/16, create
  */
 
@@ -282,7 +282,8 @@ market_t *market_create(struct market *conf)
     m->money_prec       = conf->money_prec;
     m->fee_prec         = conf->fee_prec;
     m->min_amount       = mpd_qncopy(conf->min_amount);
-    m->last_price       = mpd_qncopy(conf->init_price);
+    m->last_price       = mpd_qncopy(conf->closing_price);
+    m->closing_price    = mpd_qncopy(conf->closing_price);
 
     dict_types dt;
     memset(&dt, 0, sizeof(dt));
@@ -370,8 +371,10 @@ static int append_balance_trade_fee(order_t *order, const char *asset, mpd_t *ch
 
 bool check_price_limit(mpd_t *cmp_price, mpd_t *price, const char *pct)
 {
-    if (cmp_price != NULL
-        || mpd_cmp(price, mpd_zero, &mpd_ctx) == 0
+    if (cmp_price == NULL)
+        return false;
+
+    if (mpd_cmp(price, mpd_zero, &mpd_ctx) == 0
         || mpd_cmp(cmp_price, mpd_zero, &mpd_ctx) == 0
         || mpd_cmp(price, cmp_price, &mpd_ctx) == 0)
         return true;
@@ -1530,6 +1533,7 @@ int market_register(const char *asset, const char *init_price)
     if (ret != 0) {
         log_error("exec sql: %s fail: %d %s", sql, mysql_errno(conn), mysql_error(conn));
         sdsfree(sql);
+        mysql_close(conn);
         return -__LINE__;
     }
     sdsfree(sql);

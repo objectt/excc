@@ -18,9 +18,10 @@ CREATE TABLE `market` (
   `currency` int(5) unsigned NOT NULL DEFAULT '1',
   `fee_prec` tinyint(1) unsigned NOT NULL DEFAULT '2',
   `min_amount` decimal(10,8) unsigned NOT NULL DEFAULT '0',
-  `init_price` decimal(10,8) unsigned NOT NULL DEFAULT '0',
   `listing_date` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `delisting_date` timestamp NULL DEFAULT NULL,
+  `init_price` decimal(10,8) unsigned NOT NULL DEFAULT '0',
+  `closing_price` decimal(10,8) unsigned NOT NULL DEFAULT '0',
+  `update_date` timestamp NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `IDX_UNIQUE_ASSET_NAME` (`stock`, `currency`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
