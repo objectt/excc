@@ -10,6 +10,8 @@
 
 # define BALANCE_TYPE_AVAILABLE 1
 # define BALANCE_TYPE_FREEZE    2
+# define BALANCE_TYPE_BLENDED   3
+# define BALANCE_TYPE_PURCHASED 4
 
 extern dict_t *dict_balance;
 
@@ -38,8 +40,8 @@ mpd_t *balance_total(uint32_t user_id, const char *asset);
 int balance_status(const char *asset, mpd_t *total, size_t *available_count, mpd_t *available, size_t *freeze_count, mpd_t *freeze, size_t *total_count);
 
 json_t *get_user_balance_wallet(uint32_t user_id);
-int update_user_balance_wallet(uint32_t user_id, uint32_t asset_id, mpd_t *price, mpd_t *change);
 
 void update_asset(asset_info_t *asset);
+int wallet_update(uint32_t user_id, const char *asset, mpd_t *amount, mpd_t *price);
 
 # endif

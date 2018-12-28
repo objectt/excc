@@ -12,6 +12,7 @@
 int load_orders(MYSQL *conn, const char *table);
 int load_markets(MYSQL *conn, const char *table);
 int load_balance(MYSQL *conn, const char *table);
+int load_wallet(MYSQL *conn);
 
 int load_operlog(MYSQL *conn, const char *table, uint64_t *start_id);
 

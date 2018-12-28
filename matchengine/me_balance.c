@@ -338,8 +338,7 @@ mpd_t *balance_unfreeze(uint32_t user_id, const char *asset, mpd_t *amount)
 
 mpd_t *balance_total(uint32_t user_id, const char *asset)
 {
-    mpd_t *balance = mpd_new(&mpd_ctx);
-    mpd_copy(balance, mpd_zero, &mpd_ctx);
+    mpd_t *balance = mpd_qncopy(mpd_zero);
     mpd_t *available = balance_get(user_id, BALANCE_TYPE_AVAILABLE, asset);
     if (available) {
         mpd_add(balance, balance, available, &mpd_ctx);
@@ -350,6 +349,55 @@ mpd_t *balance_total(uint32_t user_id, const char *asset)
     }
 
     return balance;
+}
+
+int wallet_update(uint32_t user_id, const char *asset, mpd_t *amount, mpd_t *price)
+{
+    struct asset_type *at = get_asset_type(asset);
+    if (at == NULL)
+        return -1;
+
+    if (mpd_cmp(amount, mpd_zero, &mpd_ctx) < 0)
+        return -1;
+
+    mpd_t *blended = balance_get(user_id, BALANCE_TYPE_BLENDED, asset);
+    mpd_t *purchased = balance_get(user_id, BALANCE_TYPE_PURCHASED, asset);
+
+    if (blended == NULL)
+        blended = mpd_qncopy(price);
+    if (purchased == NULL)
+        purchased = mpd_qncopy(mpd_zero);
+
+    mpd_t *total = mpd_new(&mpd_ctx);
+    mpd_mul(total, amount, price, &mpd_ctx);
+
+    mpd_add(purchased, purchased, total, &mpd_ctx);
+
+    /*
+    mpd_t *tmp = mpd_new(&mpd_ctx);
+    mpd_t *tmp_blended = mpd_new(&mpd_ctx);
+    mpd_t *tmp_price = mpd_new(&mpd_ctx);
+    mpd_t *mpd_two = mpd_new(&mpd_ctx);
+    mpd_set_string(mpd_two, "2", &mpd_ctx);
+
+    mpd_rescale(tmp_blended, blended, at->prec_save, &mpd_ctx);
+    mpd_rescale(tmp_price, price, at->prec_save, &mpd_ctx);
+    mpd_add(tmp, tmp_blended, tmp_price, &mpd_ctx);
+    mpd_divint(tmp, tmp, mpd_two, &mpd_ctx);
+    mpd_rescale(blended, tmp, -at->prec_save, &mpd_ctx);
+
+    mpd_del(tmp);
+    mpd_del(tmp_blended);
+    mpd_del(tmp_price);
+    mpd_del(mpd_two);
+    */
+
+    balance_set(user_id, BALANCE_TYPE_BLENDED, asset, blended);
+    balance_set(user_id, BALANCE_TYPE_PURCHASED, asset, purchased);
+    
+    mpd_del(total);
+
+    return 1;
 }
 
 int balance_status(const char *asset, mpd_t *total, size_t *available_count, mpd_t *available, size_t *freeze_count, mpd_t *freeze, size_t *total_count)
@@ -412,39 +460,4 @@ json_t *get_user_balance_wallet(uint32_t user_id)
     mysql_close(conn);
 
     return records;
-}
-
-int update_user_balance_wallet(uint32_t user_id, uint32_t asset_id, mpd_t *price, mpd_t *change)
-{
-    mpd_t *purchased = mpd_new(&mpd_ctx);
-    mpd_mul(purchased, price, change, &mpd_ctx);
-
-    char *price_str = mpd_to_sci(price, 0);
-    char *purchased_str = mpd_to_sci(purchased, 0);
-    mpd_del(purchased);
-
-    sds sql = sdsnew ("INSERT INTO wallet (user_id, asset_id, blended, purchased) VALUES ");
-    sql = sdscatprintf(sql, "(%u, %u, ", user_id, asset_id);
-    sql = sdscatprintf(sql, "'%s', ", price_str);
-    sql = sdscatprintf(sql, "'%s') ", purchased_str);
-    sql = sdscatprintf(sql, "ON DUPLICATE KEY UPDATE purchased = purchased + ");
-    sql = sdscatprintf(sql, "'%s'", purchased_str);
-    sql = sdscatprintf(sql, ", blended = (blended + ");
-    sql = sdscatprintf(sql, "'%s')/2", price_str);
-
-    free(price_str);
-    free(purchased_str);
-
-    MYSQL *conn = mysql_connect(&settings.db_sys); // XXX Need optimization
-    int ret = mysql_real_query(conn, sql, sdslen(sql));
-    if (ret != 0) {
-        log_error("exec sql: %s fail: %d %s", sql, mysql_errno(conn), mysql_error(conn));
-        sdsfree(sql);
-        mysql_close(conn);
-        return -__LINE__;
-    }
-    sdsfree(sql);
-    mysql_close(conn);
-
-    return ret;
 }

@@ -466,9 +466,8 @@ static int execute_limit_ask_order(bool real, market_t *m, order_t *taker)
 
         // Update maker's blended / purchased
         if (real) {
-            uint32_t asset_id = asset_idx(m->stock);
-            update_user_balance_wallet(maker->user_id, asset_id, price, amount);
-            log_debug("update user wallet balance %u %u", maker->user_id, asset_id);
+            wallet_update(maker->user_id, m->stock, amount, price);
+            update_user_balance_wallet(maker->user_id, m->stock, price, amount);
         }
 
         mpd_sub(maker->left, maker->left, amount, &mpd_ctx);
@@ -582,9 +581,8 @@ static int execute_limit_bid_order(bool real, market_t *m, order_t *taker)
 
         // Update takers blended / purchased
         if (real) {
-            uint32_t asset_id = asset_idx(m->stock);
-            update_user_balance_wallet(taker->user_id, asset_id, price, amount);
-            log_debug("update user wallet balance %u %u", taker->user_id, asset_id);
+            wallet_update(taker->user_id, m->stock, amount, price);
+            update_user_balance_wallet(taker->user_id, m->stock, price, amount);
         }
 
         mpd_sub(maker->left, maker->left, amount, &mpd_ctx);

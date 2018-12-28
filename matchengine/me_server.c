@@ -203,46 +203,32 @@ static int on_cmd_balance_query(nw_ses *ses, rpc_pkg *pkg, json_t *params)
             if (detail) {
                 mpd_t *total = mpd_new(&mpd_ctx);
                 mpd_add(total, available, freeze, &mpd_ctx);
-                json_object_set_new_mpd(unit, "total", total);  // Total amount
+                json_object_set_new_mpd(unit, "total", total);  // Total = available + freeze
 
-                mpd_t *last_price = mpd_new(&mpd_ctx);
                 market_t *m = get_market(asset);
-                if (m)
-                    mpd_copy(last_price, m->last_price, &mpd_ctx);
-                else
-                    mpd_copy(last_price, mpd_zero, &mpd_ctx);
+                if (m != NULL) {
+                    mpd_mul(total, total, m->last_price, &mpd_ctx);
+                    mpd_rescale(total, total, -prec_show, &mpd_ctx);
+                    json_object_set_new_mpd(unit, "value", total); // Value in default currency
+                    json_object_set_new_mpd(unit, "last_price", m->last_price);
 
-                mpd_mul(total, total, last_price, &mpd_ctx);
-                mpd_rescale(total, total, -prec_show, &mpd_ctx);
-                json_object_set_new_mpd(unit, "value", total); // Value in default currency
-                json_object_set_new_mpd(unit, "last_price", last_price);
+                    mpd_t *blended = balance_get(user_id, BALANCE_TYPE_BLENDED, asset);
+                    mpd_t *purchased = balance_get(user_id, BALANCE_TYPE_PURCHASED, asset);
 
-                json_object_set_new(unit, "blended", json_string("0"));
-                json_object_set_new(unit, "purchased", json_string("0"));
+                    if (blended)
+                        json_object_set_new_mpd(unit, "blended", blended);
+                    else
+                        json_object_set_new_mpd(unit, "blended", mpd_zero);
 
+                    if (purchased)
+                        json_object_set_new_mpd(unit, "purchased", purchased);
+                    else
+                        json_object_set_new_mpd(unit, "purchased", mpd_zero);
+                }
                 mpd_del(total);
-                mpd_del(last_price);
             }
 
             json_object_set_new(result, asset, unit);
-        }
-
-        // Detailed report from database
-        if (detail) {
-            size_t index;
-            json_t *value;
-            json_t *wallet = get_user_balance_wallet(user_id);
-
-            json_array_foreach(wallet, index, value) {
-                const char *w_asset = json_string_value(json_object_get(value, "asset"));
-                json_t *node = json_object_get(result, w_asset);
-
-                if (node == NULL)
-                    continue;
-
-                json_object_set(node, "blended", json_object_get(value, "blended")); // Average
-                json_object_set(node, "purchased", json_object_get(value, "purchased")); // Purchased
-            }
         }
     } else {
     // Assets - Show requested assets only
@@ -311,7 +297,7 @@ static int on_cmd_balance_update(nw_ses *ses, rpc_pkg *pkg, json_t *params)
     if (prec < 0)
         return reply_error_invalid_argument(ses, pkg);
 
-    // business - deposit/withdraw/freeze
+    // business - deposit/withdraw
     if (!json_is_string(json_array_get(params, 2)))
         return reply_error_invalid_argument(ses, pkg);
     const char *business = json_string_value(json_array_get(params, 2));

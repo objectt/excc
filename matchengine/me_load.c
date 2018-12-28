@@ -73,6 +73,52 @@ int load_orders(MYSQL *conn, const char *table)
     return 0;
 }
 
+int load_wallet(MYSQL *conn)
+{
+    for(uint32_t j = 0; j < HISTORY_HASH_NUM; ++j) {
+        size_t limit = 1000;
+        uint64_t user_id = 0;
+        while (true) {
+            sds sql = sdsempty();
+            sql = sdscatprintf(sql, "SELECT W.user_id, W.asset, W.blended, W.purchased FROM user_wallet_%u W "
+                                    "WHERE user_id > %"PRIu64" ORDER BY user_id LIMIT %zu",
+                                    j, user_id, limit);
+
+            log_trace("exec sql: %s", sql);
+            int ret = mysql_real_query(conn, sql, sdslen(sql));
+            if (ret != 0) {
+                log_error("exec sql: %s fail: %d %s", sql, mysql_errno(conn), mysql_error(conn));
+                sdsfree(sql);
+                return -__LINE__;
+            }
+            sdsfree(sql);
+
+            MYSQL_RES *result = mysql_store_result(conn);
+            size_t num_rows = mysql_num_rows(result);
+            for (size_t i = 0; i < num_rows; ++i) {
+                MYSQL_ROW row = mysql_fetch_row(result);
+
+                user_id = strtoull(row[0], NULL, 0);
+                const char *asset = row[1];
+                if (!asset_exist(asset)) {
+                    continue;
+                }
+
+                mpd_t *blended = decimal(row[2], asset_prec(asset));
+                mpd_t *purchased = decimal(row[3], asset_prec(asset));
+                balance_set(user_id, BALANCE_TYPE_BLENDED, asset, blended);
+                balance_set(user_id, BALANCE_TYPE_PURCHASED, asset, purchased);
+            }
+            mysql_free_result(result);
+
+            if (num_rows < limit)
+                break;
+        }
+    }
+
+    return 0;
+}
+
 int load_balance(MYSQL *conn, const char *table)
 {
     size_t query_limit = 1000;

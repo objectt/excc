@@ -148,10 +148,10 @@ int update_user_balance(bool real, uint32_t user_id, const char *asset, const ch
                 return -__LINE__;
             }
 
-            int asset_id = asset_idx(asset);
-            update_user_balance_wallet(user_id, asset_id, _price, change);
+            wallet_update(user_id, asset, change, _price);
+            update_user_balance_wallet(user_id, asset, _price, change);
+
             mpd_del(_price);
-            log_debug("update user wallet balance %u %u", user_id, asset_id);
         }
 
         json_object_set_new(detail, "id", json_integer(business_id));

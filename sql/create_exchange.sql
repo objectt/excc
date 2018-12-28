@@ -18,21 +18,11 @@ CREATE TABLE `market` (
   `currency` int(5) unsigned NOT NULL DEFAULT '1',
   `fee_prec` tinyint(1) unsigned NOT NULL DEFAULT '2',
   `min_amount` decimal(10,8) unsigned NOT NULL DEFAULT '0',
-  `listing_date` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `init_price` decimal(10,8) unsigned NOT NULL DEFAULT '0',
   `closing_price` decimal(10,8) unsigned NOT NULL DEFAULT '0',
-  `update_date` timestamp NULL DEFAULT NULL,
+  `update_time` timestamp NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `IDX_UNIQUE_ASSET_NAME` (`stock`, `currency`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-CREATE TABLE `wallet` (
-  `user_id` int(11) unsigned NOT NULL,
-  `asset_id` int(5) unsigned NOT NULL DEFAULT '0',
-  `blended` decimal(30,8) unsigned NOT NULL DEFAULT '0',
-  `purchased` decimal(30,8) unsigned NOT NULL DEFAULT '0',
-  `update_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`user_id`,`asset_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
-INSERT INTO assets (name, prec_save, prec_show, min_amount, is_listed) VALUES ('KRW', 8, 4, 0, 0);
+INSERT INTO assets (name, prec_save, prec_show, min_amount, is_listed) VALUES ('USD', 8, 4, 0, 0);

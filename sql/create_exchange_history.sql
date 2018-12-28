@@ -90,3 +90,13 @@ CREATE TABLE `user_deal_history_example` (
     `deal_fee`      DECIMAL(30,16) NOT NULL,
     INDEX `idx_user_market` (`user_id`, `market`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+-- split by user_id
+CREATE TABLE `user_wallet_example` (
+  `user_id`     int(11) unsigned NOT NULL,
+  `asset`       VARCHAR(30) NOT NULL,
+  `blended`     decimal(30,8) unsigned NOT NULL DEFAULT '0',
+  `purchased`   decimal(30,8) unsigned NOT NULL DEFAULT '0',
+  `update_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
