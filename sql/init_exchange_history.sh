@@ -1,8 +1,8 @@
 #!/bin/bash
 
-MYSQL_HOST="exchange.cnmfr9wvmqrr.ap-northeast-2.rds.amazonaws.com"
+MYSQL_HOST="localhost"
 MYSQL_USER="root"
-MYSQL_PASS="blocko20!*"
+MYSQL_PASS="1234"
 MYSQL_DB="trade_history"
 
 for i in `seq 0 99`
