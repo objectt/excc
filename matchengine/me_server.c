@@ -457,6 +457,7 @@ static int on_cmd_order_put(nw_ses *ses, rpc_pkg *pkg, json_t *params)
     mpd_t *price = mpd_qncopy(mpd_zero);
     mpd_t *taker_fee = NULL;
     mpd_t *maker_fee = mpd_qncopy(mpd_zero);
+    json_t *result = NULL;
 
     // amount
     if (!json_is_string(json_array_get(params, idx)))
@@ -506,7 +507,6 @@ static int on_cmd_order_put(nw_ses *ses, rpc_pkg *pkg, json_t *params)
 
     int ret;
     char *oper;
-    json_t *result = NULL;
 
     // 3) Price Limits
     if (is_price_setter) {
