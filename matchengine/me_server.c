@@ -453,9 +453,9 @@ static int on_cmd_order_put(nw_ses *ses, rpc_pkg *pkg, json_t *params)
     if (side != MARKET_ORDER_SIDE_ASK && side != MARKET_ORDER_SIDE_BID)
         return reply_error_invalid_argument(ses, pkg);
 
-    mpd_t *amount;
+    mpd_t *amount = NULL;
     mpd_t *price = mpd_qncopy(mpd_zero);
-    mpd_t *taker_fee;
+    mpd_t *taker_fee = NULL;
     mpd_t *maker_fee = mpd_qncopy(mpd_zero);
 
     // amount
