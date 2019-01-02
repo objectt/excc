@@ -41,7 +41,7 @@ int init_trade(void)
     if (dict_market == NULL)
         return -__LINE__;
 
-    log_debug("creating %zu markets", settings.market_num);
+    log_stderr("creating %zu markets", settings.market_num);
     for (size_t i = 0; i < settings.market_num; ++i) {
         market_t *m = market_create(&settings.markets[i]);
         if (m == NULL) {

@@ -30,7 +30,7 @@ static int get_last_slice(MYSQL *conn, time_t *timestamp, uint64_t *last_oper_id
     sds sql = sdsempty();
     sql = sdscatprintf(sql, "SELECT `time`, `end_oper_id`, `end_order_id`, `end_deals_id` from `slice_history` ORDER BY `id` DESC LIMIT 1");
     log_stderr("get last slice time");
-    log_trace("exec sql: %s", sql);
+    //log_trace("exec sql: %s", sql);
     int ret = mysql_real_query(conn, sql, sdslen(sql));
     if (ret != 0) {
         log_error("exec sql: %s fail: %d %s", sql, mysql_errno(conn), mysql_error(conn));
@@ -216,7 +216,7 @@ int update_slice_history(MYSQL *conn, time_t end)
     sql = sdscatprintf(sql, "INSERT INTO `slice_history` (`id`, `time`, `end_oper_id`, `end_order_id`, `end_deals_id`) VALUES (NULL, %ld, %"PRIu64", %"PRIu64", %"PRIu64")",
             end, operlog_id_start, order_id_start, deals_id_start);
     log_info("update slice history to: %ld", end);
-    log_trace("exec sql: %s", sql);
+    //log_trace("exec sql: %s", sql);
     int ret = mysql_real_query(conn, sql, sdslen(sql));
     if (ret < 0) {
         log_error("exec sql: %s fail: %d %s", sql, mysql_errno(conn), mysql_error(conn));
@@ -268,7 +268,7 @@ static int slice_count(MYSQL *conn, time_t timestamp)
 {
     sds sql = sdsempty();
     sql = sdscatprintf(sql, "SELECT COUNT(*) FROM `slice_history` WHERE `time` >= %ld", timestamp - settings.slice_keeptime);
-    log_trace("exec sql: %s", sql);
+    //log_trace("exec sql: %s", sql);
     int ret = mysql_real_query(conn, sql, sdslen(sql));
     if (ret != 0) {
         log_error("exec sql: %s fail: %d %s", sql, mysql_errno(conn), mysql_error(conn));

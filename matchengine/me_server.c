@@ -211,6 +211,7 @@ static int on_cmd_balance_query(nw_ses *ses, rpc_pkg *pkg, json_t *params)
                     mpd_rescale(total, total, -prec_show, &mpd_ctx);
                     json_object_set_new_mpd(unit, "value", total); // Value in default currency
                     json_object_set_new_mpd(unit, "last_price", m->last_price);
+                    json_object_set_new_mpd(unit, "closing_price", m->closing_price);
 
                     mpd_t *blended = balance_get(user_id, BALANCE_TYPE_BLENDED, asset);
                     mpd_t *purchased = balance_get(user_id, BALANCE_TYPE_PURCHASED, asset);
