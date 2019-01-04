@@ -386,6 +386,7 @@ int update_user_balance_wallet(uint32_t user_id, const char *asset, mpd_t *price
     sql = sdscatprintf(sql, ", blended = (blended + ");
     sql = sql_append_mpd(sql, price, false);
     sql = sdscatprintf(sql, ")/2;");
+    log_debug("%s", sql);
 
     mpd_del(purchased);    
     set_sql(&key, sql);

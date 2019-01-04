@@ -148,6 +148,7 @@ int load_balance(MYSQL *conn, const char *table)
             }
             uint32_t type = strtoul(row[3], NULL, 0);
             mpd_t *balance = decimal(row[4], asset_prec(asset));
+
             balance_set(user_id, type, asset, balance);
             add_user_to_market(asset, user_id); // Add to market->users
         }

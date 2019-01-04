@@ -1,5 +1,5 @@
-DROP DATABASE trade_history;
-CREATE DATABASE trade_history;
+--DROP DATABASE trade_history;
+--CREATE DATABASE trade_history;
 USE trade_history;
 
 CREATE TABLE `balance_history_example` (
@@ -98,5 +98,5 @@ CREATE TABLE `user_wallet_example` (
   `blended`     decimal(30,8) unsigned NOT NULL DEFAULT '0',
   `purchased`   decimal(30,8) unsigned NOT NULL DEFAULT '0',
   `update_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`user_id`)
+  PRIMARY KEY (`user_id`, `asset`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;

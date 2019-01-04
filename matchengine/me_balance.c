@@ -363,34 +363,35 @@ int wallet_update(uint32_t user_id, const char *asset, mpd_t *amount, mpd_t *pri
     mpd_t *blended = balance_get(user_id, BALANCE_TYPE_BLENDED, asset);
     mpd_t *purchased = balance_get(user_id, BALANCE_TYPE_PURCHASED, asset);
 
-    if (blended == NULL)
+    if (blended == NULL || mpd_cmp(blended, mpd_zero, &mpd_ctx) == 0)
         blended = mpd_qncopy(price);
     if (purchased == NULL)
         purchased = mpd_qncopy(mpd_zero);
 
     mpd_t *total = mpd_new(&mpd_ctx);
     mpd_mul(total, amount, price, &mpd_ctx);
-
     mpd_add(purchased, purchased, total, &mpd_ctx);
 
-    /*
+    mpd_t *prec = mpd_new(&mpd_ctx);
     mpd_t *tmp = mpd_new(&mpd_ctx);
-    mpd_t *tmp_blended = mpd_new(&mpd_ctx);
-    mpd_t *tmp_price = mpd_new(&mpd_ctx);
     mpd_t *mpd_two = mpd_new(&mpd_ctx);
+
+    mpd_set_i32(prec, at->prec_save, &mpd_ctx);
     mpd_set_string(mpd_two, "2", &mpd_ctx);
 
-    mpd_rescale(tmp_blended, blended, at->prec_save, &mpd_ctx);
-    mpd_rescale(tmp_price, price, at->prec_save, &mpd_ctx);
-    mpd_add(tmp, tmp_blended, tmp_price, &mpd_ctx);
+    mpd_add(tmp, blended, price, &mpd_ctx);
+    mpd_rescale(tmp, tmp, -at->prec_save, &mpd_ctx);
+    mpd_exp(tmp, at->prec_save, &mpd_ctx);
     mpd_divint(tmp, tmp, mpd_two, &mpd_ctx);
-    mpd_rescale(blended, tmp, -at->prec_save, &mpd_ctx);
+    mpd_exp(tmp, -at->prec_save, &mpd_ctx);
+
+    char *tmp_str = mpd_to_sci(tmp, 0);
+    char *tmp_blended_str = mpd_to_sci(blended, 0);
+    log_debug("wallet_update = %s / 2 = %s", tmp_str, tmp_blended_str);
 
     mpd_del(tmp);
-    mpd_del(tmp_blended);
-    mpd_del(tmp_price);
+    mpd_del(prec);
     mpd_del(mpd_two);
-    */
 
     balance_set(user_id, BALANCE_TYPE_BLENDED, asset, blended);
     balance_set(user_id, BALANCE_TYPE_PURCHASED, asset, purchased);
