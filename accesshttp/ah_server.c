@@ -5,6 +5,7 @@
 
 # include "ah_config.h"
 # include "ah_server.h"
+# include "jwt.h"
 
 static http_svr *svr;
 static nw_state *state;
@@ -97,6 +98,28 @@ static int on_http_request(nw_ses *ses, http_request_t *request)
             reply_internal_error(ses);
             json_decref(body);
             return 0;
+        }
+
+        // Verify Bearer JWT
+        const char *authorization = http_request_get_header(request, "Authorization");
+        if (authorization != NULL) {
+            const char *key_file = "./key.pem";
+            unsigned char key[16384];
+            FILE *fp = fopen(key_file, "r");
+            size_t key_len = fread(key, 1, sizeof(key), fp);
+            fclose(fp);
+            key[key_len] = '\0';
+
+            jwt_t *jwte = NULL;
+            //int ret = jwt_decode(&jwte, authorization + 7, key, key_len);
+            int ret = jwt_decode(&jwte, authorization + 7, NULL, 0);
+            log_debug("%d", ret);
+
+            if (jwte != NULL) {
+                char *dump = jwt_dump_str(jwte, 1);
+                log_debug("%d %s", ret, dump);
+            }
+            jwt_free(jwte);
         }
 
         nw_state_entry *entry = nw_state_add(state, settings.timeout, 0);
@@ -345,4 +368,3 @@ int init_server(void)
 
     return 0;
 }
-
