@@ -34,9 +34,3 @@ do
     echo "create table user_deal_history_$i"
     mysql -h$MYSQL_HOST -u$MYSQL_USER -p$MYSQL_PASS $MYSQL_DB -e "CREATE TABLE user_deal_history_$i LIKE user_deal_history_example;"
 done
-
-for i in `seq 0 99`
-do
-    echo "create table user_wallet_$i"
-    mysql -h$MYSQL_HOST -u$MYSQL_USER -p$MYSQL_PASS $MYSQL_DB -e "CREATE TABLE user_wallet_$i LIKE user_wallet_example;"
-done

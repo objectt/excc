@@ -21,7 +21,8 @@ struct job_request {
 // Load assets config from database
 static int load_assets_from_db(MYSQL *conn)
 {
-    sds sql = sdsnew("SELECT id, name, prec_save, prec_show FROM assets WHERE id = 1 OR is_listed = 1");
+    sds sql = sdsnew("SELECT id, name, prec_save, prec_show, min_amount "
+                     "FROM assets WHERE id = 1 OR is_listed = 1");
     int ret = mysql_real_query(conn, sql, sdslen(sql));
     if (ret != 0) {
         log_error("exec sql: %s fail: %d %s", sql, mysql_errno(conn), mysql_error(conn));
@@ -40,6 +41,7 @@ static int load_assets_from_db(MYSQL *conn)
         settings.assets[i].name = strdup(row[1]);
         settings.assets[i].prec_save = strtoul(row[2], NULL, 0);
         settings.assets[i].prec_show = strtoul(row[3], NULL, 0);
+        settings.assets[i].min_amount = decimal(row[4], 0);
     }
     mysql_free_result(result);
 
@@ -49,7 +51,7 @@ static int load_assets_from_db(MYSQL *conn)
 // Load newly added assets
 static int update_assets_from_db(MYSQL *conn)
 {
-    sds sql = sdsnew("SELECT id, name, prec_save, prec_show FROM assets A "
+    sds sql = sdsnew("SELECT id, name, prec_save, prec_show, min_amount FROM assets A "
                      "WHERE A.is_listed = 0 AND A.id != 1");
     log_trace("exec sql: %s", sql);
     int ret = mysql_real_query(conn, sql, sdslen(sql));
@@ -87,11 +89,12 @@ static int update_assets_from_db(MYSQL *conn)
         settings.assets[i].name = strdup(row[1]);
         settings.assets[i].prec_save = strtoul(row[2], NULL, 0);
         settings.assets[i].prec_show = strtoul(row[3], NULL, 0);
+        settings.assets[i].min_amount = decimal(row[4], 0);
 
         update_asset(&(settings.assets[i])); // update dict_asset
         asset_cnt++;
 
-        log_debug("successfully registered a new asset - %s", settings.assets[i].name);
+        log_debug("new asset loaded - %s", settings.assets[i].name);
     }
     mysql_free_result(result);
 
@@ -212,7 +215,7 @@ static int update_market_from_db(MYSQL *conn)
 
         market_cnt++;
 
-        log_debug("successfully registered a new stock - %s", settings.markets[i].name);
+        log_debug("new stock loaded - %s", settings.markets[i].name);
     }
     mysql_free_result(result);
 
@@ -310,7 +313,7 @@ static void update_market_closing_price(MYSQL *conn)
         mpd_copy(settings.markets[i].closing_price, m->last_price, &mpd_ctx);
         mpd_copy(m->closing_price, m->last_price, &mpd_ctx);
         char *closing_price = mpd_to_sci(m->closing_price, 0);
-        log_debug("setting last price of %s to %s", m->name, closing_price);
+        log_debug("set last price - %s = %s", m->name, closing_price);
 
         sql = sdscatprintf(sql, "UPDATE market SET closing_price = '%s', "
                                 "update_date = CURRENT_TIMESTAMP() WHERE id = %d",
@@ -406,11 +409,11 @@ int init_job()
         return -__LINE__;
 
     // 9AM KST
-    nw_periodic_set(&daily_periodic, 1545645600, 1800, on_daily_periodic, NULL);
+    nw_periodic_set(&daily_periodic, 1546819200, 86400, on_daily_periodic, NULL);
     nw_periodic_start(&daily_periodic);
 
     // Every minute
-    nw_periodic_set(&min_periodic, 1545645600, 60, on_min_periodic, NULL);
+    nw_periodic_set(&min_periodic, 1545645600, 120, on_min_periodic, NULL);
     nw_periodic_start(&min_periodic);
 
     return 0;

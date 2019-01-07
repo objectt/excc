@@ -416,7 +416,7 @@ static int reload_market()
         if (market_exist(name))
             continue;
 
-        log_debug("initializing a new market - %s", name);
+        log_debug("new market found - %s", name);
         struct market_info *info = create_market(name);
         if (info == NULL) {
             log_fatal("create_market %s failed", name);
@@ -833,7 +833,6 @@ static void clear_kline(void)
 
 static void on_config_periodic(nw_periodic *periodic, void *privdata)
 {
-    log_debug("on_config_periodic");
     reload_market();
 }
 
@@ -949,7 +948,7 @@ int init_message(void)
     nw_timer_start(&market_timer);
 
     // XXX Temporary
-    nw_periodic_set(&config_periodic, 1545067800, 150, on_config_periodic, NULL);
+    nw_periodic_set(&config_periodic, 1545067800, 125, on_config_periodic, NULL);
     nw_periodic_start(&config_periodic);
 
     nw_timer_set(&clear_timer, 3600, true, on_clear_timer, NULL);

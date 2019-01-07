@@ -1,5 +1,5 @@
-DROP DATABASE trade_log;
-CREATE DATABASE trade_log;
+--DROP DATABASE trade_log;
+--CREATE DATABASE trade_log;
 USE trade_log;
 
 CREATE TABLE `slice_balance_example` (

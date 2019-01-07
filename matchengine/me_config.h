@@ -54,9 +54,11 @@ typedef struct asset {
     char                *name;
     int                 prec_save;
     int                 prec_show;
+    mpd_t               *min_amount;
 } asset_info_t;
 
 typedef struct market {
+    uint32_t            id;
     char                *name;
     char                *stock;
     char                *money;
@@ -66,7 +68,6 @@ typedef struct market {
     mpd_t               *min_amount;
     mpd_t               *init_price;
     mpd_t               *closing_price;
-    uint32_t            id;
 } market_info_t;
 
 struct settings {

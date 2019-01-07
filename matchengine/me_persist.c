@@ -161,14 +161,6 @@ int init_from_db(void)
     operlog_id_start = last_oper_id;
 
     mysql_close(conn);
-
-    conn = mysql_connect(&settings.db_history);
-    ret = load_wallet(conn);
-    if (ret < 0) {
-        log_error("load_wallet fail: %d", ret);
-        return ret;
-    }
-    mysql_close(conn);
     log_stderr("load success");
 
     return 0;

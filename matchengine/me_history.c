@@ -18,7 +18,6 @@ enum {
     HISTORY_USER_DEAL,
     HISTORY_ORDER_DETAIL,
     HISTORY_ORDER_DEAL,
-    WALLET_USER_BALANCE,
 };
 
 struct dict_sql_key {
@@ -362,34 +361,4 @@ bool is_history_block(void)
 sds history_status(sds reply)
 {
     return sdscatprintf(reply, "history pending %d\n", job->request_count);
-}
-
-int update_user_balance_wallet(uint32_t user_id, const char *asset, mpd_t *price, mpd_t *change)
-{
-    struct dict_sql_key key;
-    key.hash = user_id % HISTORY_HASH_NUM;
-    key.type = WALLET_USER_BALANCE;
-    sds sql = get_sql(&key);
-    if (sql == NULL)
-        return -__LINE__;
-
-    mpd_t *purchased = mpd_new(&mpd_ctx);
-    mpd_mul(purchased, price, change, &mpd_ctx);
-
-    sql = sdscatprintf(sql, "INSERT INTO user_wallet_%u "
-                            "(user_id, asset, blended, purchased) VALUES ", key.hash);
-    sql = sdscatprintf(sql, "(%u, '%s', ", user_id, asset);
-    sql = sql_append_mpd(sql, price, true);
-    sql = sql_append_mpd(sql, purchased, false);
-    sql = sdscatprintf(sql, ") ON DUPLICATE KEY UPDATE purchased = purchased + ");
-    sql = sql_append_mpd(sql, purchased, false);
-    sql = sdscatprintf(sql, ", blended = (blended + ");
-    sql = sql_append_mpd(sql, price, false);
-    sql = sdscatprintf(sql, ")/2;");
-    log_debug("%s", sql);
-
-    mpd_del(purchased);    
-    set_sql(&key, sql);
-
-    return 0;
 }

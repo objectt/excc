@@ -138,7 +138,7 @@ static int add_cache(sds cache_key, json_t *result)
 static int on_cmd_balance_query(nw_ses *ses, rpc_pkg *pkg, json_t *params)
 {
     size_t request_size = json_array_size(params);
-    if (request_size < 2)
+    if (request_size < 1)
         return reply_error_invalid_argument(ses, pkg);
 
     // User ID
@@ -148,17 +148,10 @@ static int on_cmd_balance_query(nw_ses *ses, rpc_pkg *pkg, json_t *params)
     if (user_id == 0)
         return reply_error_invalid_argument(ses, pkg);
 
-    // Option
-    if (!json_is_integer(json_array_get(params, 1)))
-        return reply_error_invalid_argument(ses, pkg);
-    uint32_t detail = json_integer_value(json_array_get(params, 1));
-    if (detail != 0 && detail != 1)
-        return reply_error_invalid_argument(ses, pkg);
-
     json_t *result = json_object();
 
     // Assets - Show All
-    if (request_size == 2) {
+    if (request_size == 1) {
         for (size_t i = 0; i < settings.asset_num; ++i) {
             const char *asset = settings.assets[i].name;
             json_t *unit = json_object();
@@ -199,41 +192,26 @@ static int on_cmd_balance_query(nw_ses *ses, rpc_pkg *pkg, json_t *params)
                 json_object_set_new(unit, "freeze", json_string("0"));
             }
 
-            // Detailed report - Total value
-            if (detail) {
-                mpd_t *total = mpd_new(&mpd_ctx);
-                mpd_add(total, available, freeze, &mpd_ctx);
-                json_object_set_new_mpd(unit, "total", total);  // Total = available + freeze
+            // Additional Fields
+            mpd_t *total = mpd_new(&mpd_ctx);
+            mpd_add(total, available, freeze, &mpd_ctx);
+            json_object_set_new_mpd(unit, "total", total);  // Total = available + freeze
 
-                market_t *m = get_market(asset);
-                if (m != NULL) {
-                    mpd_mul(total, total, m->last_price, &mpd_ctx);
-                    mpd_rescale(total, total, -prec_show, &mpd_ctx);
-                    json_object_set_new_mpd(unit, "value", total); // Value in default currency
-                    json_object_set_new_mpd(unit, "last_price", m->last_price);
-                    json_object_set_new_mpd(unit, "closing_price", m->closing_price);
-
-                    mpd_t *blended = balance_get(user_id, BALANCE_TYPE_BLENDED, asset);
-                    mpd_t *purchased = balance_get(user_id, BALANCE_TYPE_PURCHASED, asset);
-
-                    if (blended)
-                        json_object_set_new_mpd(unit, "blended", blended);
-                    else
-                        json_object_set_new_mpd(unit, "blended", mpd_zero);
-
-                    if (purchased)
-                        json_object_set_new_mpd(unit, "purchased", purchased);
-                    else
-                        json_object_set_new_mpd(unit, "purchased", mpd_zero);
-                }
-                mpd_del(total);
+            market_t *m = get_market(asset);
+            if (m != NULL) {
+                mpd_mul(total, total, m->last_price, &mpd_ctx);
+                mpd_rescale(total, total, -prec_show, &mpd_ctx);
+                json_object_set_new_mpd(unit, "value", total); // Value in default currency
+                json_object_set_new_mpd(unit, "last_price", m->last_price);
+                json_object_set_new_mpd(unit, "closing_price", m->closing_price);
             }
+            mpd_del(total);
 
             json_object_set_new(result, asset, unit);
         }
     } else {
     // Assets - Show requested assets only
-        for (size_t i = 2; i < request_size; ++i) {
+        for (size_t i = 1; i < request_size; ++i) {
             const char *asset = json_string_value(json_array_get(params, i));
             if (!asset || !asset_exist(asset)) {
                 json_decref(result);
@@ -271,6 +249,23 @@ static int on_cmd_balance_query(nw_ses *ses, rpc_pkg *pkg, json_t *params)
                 json_object_set_new(unit, "freeze", json_string("0"));
             }
 
+            mpd_t *total = mpd_qncopy(mpd_zero);
+            if (available)
+                mpd_add(total, total, available, &mpd_ctx);
+            if (freeze)
+                mpd_add(total, total, freeze, &mpd_ctx);
+            json_object_set_new_mpd(unit, "total", total);  // Total = available + freeze
+
+            market_t *m = get_market(asset);
+            if (m != NULL) {
+                mpd_mul(total, total, m->last_price, &mpd_ctx);
+                mpd_rescale(total, total, -prec_show, &mpd_ctx);
+                json_object_set_new_mpd(unit, "value", total); // Value in default currency
+                json_object_set_new_mpd(unit, "last_price", m->last_price);
+                json_object_set_new_mpd(unit, "closing_price", m->closing_price);
+            }
+            mpd_del(total);
+
             json_object_set_new(result, asset, unit);
         }
     }
@@ -298,7 +293,7 @@ static int on_cmd_balance_update(nw_ses *ses, rpc_pkg *pkg, json_t *params)
     if (prec < 0)
         return reply_error_invalid_argument(ses, pkg);
 
-    // business - deposit/withdraw
+    // business - freeze/deposit/withdraw
     if (!json_is_string(json_array_get(params, 2)))
         return reply_error_invalid_argument(ses, pkg);
     const char *business = json_string_value(json_array_get(params, 2));
@@ -318,12 +313,6 @@ static int on_cmd_balance_update(nw_ses *ses, rpc_pkg *pkg, json_t *params)
     // detail
     json_t *detail = json_array_get(params, 5);
     if (!json_is_object(detail)) {
-        mpd_del(change);
-        return reply_error_invalid_argument(ses, pkg);
-    }
-
-    json_t *price = json_object_get(detail, "price");
-    if (price != NULL && !json_is_string(price)) {
         mpd_del(change);
         return reply_error_invalid_argument(ses, pkg);
     }
@@ -510,7 +499,8 @@ static int on_cmd_order_put(nw_ses *ses, rpc_pkg *pkg, json_t *params)
 
     // 3) Price Limits
     if (is_price_setter) {
-        if (!check_price_limit(market->last_price, price, "0.3")
+        if (mpd_cmp(price, asset_min_amount(market->money), &mpd_ctx) < 0
+            || !check_price_limit(market->last_price, price, "0.3")
             || !check_price_limit(market->closing_price, price, "0.5")) {
             ret = -4;
             goto invalid_order;

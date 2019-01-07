@@ -10,9 +10,10 @@ dict_t *dict_balance;
 static dict_t *dict_asset;
 
 struct asset_type {
+    uint32_t id;
     int prec_save;
     int prec_show;
-    uint32_t id;
+    mpd_t *min_amount;
 };
 
 static uint32_t asset_dict_hash_function(const void *key)
@@ -119,9 +120,11 @@ int init_balance()
 
     for (size_t i = 0; i < settings.asset_num; ++i) {
         struct asset_type type;
+        type.id = settings.assets[i].id;
         type.prec_save = settings.assets[i].prec_save;
         type.prec_show = settings.assets[i].prec_show;
-        type.id = settings.assets[i].id;
+        type.min_amount = settings.assets[i].min_amount;
+
         if (dict_add(dict_asset, settings.assets[i].name, &type) == NULL)
             return -__LINE__;
     }
@@ -134,6 +137,7 @@ void update_asset(asset_info_t *asset)
     struct asset_type type;
     type.prec_save = asset->prec_save;
     type.prec_show = asset->prec_show;
+    type.min_amount = asset->min_amount;
     type.id = asset->id;
 
     dict_add(dict_asset, asset->name, &type);
@@ -170,6 +174,12 @@ uint32_t asset_idx(const char *asset)
 {
     struct asset_type *at = get_asset_type(asset);
     return at->id;
+}
+
+mpd_t *asset_min_amount(const char *asset)
+{
+    struct asset_type *at = get_asset_type(asset);
+    return at->min_amount;
 }
 
 mpd_t *balance_get(uint32_t user_id, uint32_t type, const char *asset)
@@ -351,56 +361,6 @@ mpd_t *balance_total(uint32_t user_id, const char *asset)
     return balance;
 }
 
-int wallet_update(uint32_t user_id, const char *asset, mpd_t *amount, mpd_t *price)
-{
-    struct asset_type *at = get_asset_type(asset);
-    if (at == NULL)
-        return -1;
-
-    if (mpd_cmp(amount, mpd_zero, &mpd_ctx) < 0)
-        return -1;
-
-    mpd_t *blended = balance_get(user_id, BALANCE_TYPE_BLENDED, asset);
-    mpd_t *purchased = balance_get(user_id, BALANCE_TYPE_PURCHASED, asset);
-
-    if (blended == NULL || mpd_cmp(blended, mpd_zero, &mpd_ctx) == 0)
-        blended = mpd_qncopy(price);
-    if (purchased == NULL)
-        purchased = mpd_qncopy(mpd_zero);
-
-    mpd_t *total = mpd_new(&mpd_ctx);
-    mpd_mul(total, amount, price, &mpd_ctx);
-    mpd_add(purchased, purchased, total, &mpd_ctx);
-
-    mpd_t *prec = mpd_new(&mpd_ctx);
-    mpd_t *tmp = mpd_new(&mpd_ctx);
-    mpd_t *mpd_two = mpd_new(&mpd_ctx);
-
-    mpd_set_i32(prec, at->prec_save, &mpd_ctx);
-    mpd_set_string(mpd_two, "2", &mpd_ctx);
-
-    mpd_add(tmp, blended, price, &mpd_ctx);
-    mpd_rescale(tmp, tmp, -at->prec_save, &mpd_ctx);
-    mpd_exp(tmp, at->prec_save, &mpd_ctx);
-    mpd_divint(tmp, tmp, mpd_two, &mpd_ctx);
-    mpd_exp(tmp, -at->prec_save, &mpd_ctx);
-
-    char *tmp_str = mpd_to_sci(tmp, 0);
-    char *tmp_blended_str = mpd_to_sci(blended, 0);
-    log_debug("wallet_update = %s / 2 = %s", tmp_str, tmp_blended_str);
-
-    mpd_del(tmp);
-    mpd_del(prec);
-    mpd_del(mpd_two);
-
-    balance_set(user_id, BALANCE_TYPE_BLENDED, asset, blended);
-    balance_set(user_id, BALANCE_TYPE_PURCHASED, asset, purchased);
-    
-    mpd_del(total);
-
-    return 1;
-}
-
 int balance_status(const char *asset, mpd_t *total, size_t *available_count, mpd_t *available, size_t *freeze_count, mpd_t *freeze, size_t *total_count)
 {
     *total_count = 0;
@@ -429,36 +389,4 @@ int balance_status(const char *asset, mpd_t *total, size_t *available_count, mpd
     dict_release_iterator(iter);
 
     return 0;
-}
-
-json_t *get_user_balance_wallet(uint32_t user_id)
-{
-    MYSQL *conn = mysql_connect(&settings.db_sys);
-    sds sql = sdsnew("SELECT A.name, W.blended, W.purchased FROM assets A, wallet W "
-                     "WHERE A.id = W.asset_id AND W.user_id = ");
-    sql = sdscatprintf(sql, "%u", user_id);
-
-    int ret = mysql_real_query(conn, sql, sdslen(sql));
-    if (ret != 0) {
-        log_error("exec sql: %s fail: %d %s", sql, mysql_errno(conn), mysql_error(conn));
-        sdsfree(sql);
-        return json_null();
-    }
-    sdsfree(sql);
-
-    MYSQL_RES *result = mysql_store_result(conn);
-    size_t num_rows = mysql_num_rows(result);
-    json_t *records = json_array();
-    for (size_t i = 0; i < num_rows; ++i) {
-        MYSQL_ROW row = mysql_fetch_row(result);
-        json_t *record = json_object();
-        json_object_set_new(record, "asset", json_string(rstripzero(row[0])));
-        json_object_set_new(record, "blended", json_string(rstripzero(row[1])));
-        json_object_set_new(record, "purchased", json_string(rstripzero(row[2])));
-        json_array_append_new(records, record);
-    }
-    mysql_free_result(result);
-    mysql_close(conn);
-
-    return records;
 }
