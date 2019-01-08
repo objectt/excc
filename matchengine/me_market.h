@@ -68,7 +68,7 @@ skiplist_t *market_get_order_list(market_t *m, uint32_t user_id);
 
 sds market_status(sds reply);
 
-int market_register(const char *asset, const char *init_price);
+int market_register(const char *asset, char *init_price);
 json_t *market_detail(market_t *market);
 int add_user_to_market(const char *market, uint32_t user_id);
 bool check_price_limit(mpd_t *cmp_price, mpd_t *price, const char *pct);

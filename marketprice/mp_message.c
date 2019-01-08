@@ -276,6 +276,7 @@ static struct market_info *create_market(const char *market)
 
     sds key = sdsnew(market);
     dict_add(dict_market, key, info);
+    log_debug("new market created - %s", info->name);
 
     return info;
 }
@@ -420,7 +421,6 @@ static int reload_market()
         if (market_exist(name))
             continue;
 
-        log_debug("new market found - %s", name);
         struct market_info *info = create_market(name);
         if (info == NULL) {
             log_fatal("create_market %s failed", name);

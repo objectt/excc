@@ -1514,7 +1514,7 @@ sds market_status(sds reply)
     return reply;
 }
 
-int market_register(const char *asset, const char *init_price)
+int market_register(const char *asset, char *init_price)
 {
     log_debug("registering a new market - %s @ %s", asset, init_price);
 

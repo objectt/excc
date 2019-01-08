@@ -313,7 +313,7 @@ static void update_market_closing_price(MYSQL *conn)
         mpd_copy(settings.markets[i].closing_price, m->last_price, &mpd_ctx);
         mpd_copy(m->closing_price, m->last_price, &mpd_ctx);
         char *closing_price = mpd_to_sci(m->closing_price, 0);
-        log_debug("set last price - %s = %s", m->name, closing_price);
+        log_debug("set closing price - %s = %s", m->name, closing_price);
 
         sql = sdscatprintf(sql, "UPDATE market SET closing_price = '%s', "
                                 "update_date = CURRENT_TIMESTAMP() WHERE id = %d",
@@ -323,9 +323,12 @@ static void update_market_closing_price(MYSQL *conn)
         if (ret != 0) {
             log_fatal("exec sql: %s fail: %d %s", sql, mysql_errno(conn), mysql_error(conn));
             sdsfree(sql);
+            free(closing_price);
             break;
         }
+
         sdsfree(sql);
+        free(closing_price);
     }
 }
 

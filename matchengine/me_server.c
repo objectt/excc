@@ -1066,13 +1066,15 @@ static int on_cmd_market_register(nw_ses *ses, rpc_pkg *pkg, json_t *params)
         }
     }
 
-    const char *init_price_str = mpd_to_sci(init_price, 0);
+    char *init_price_str = mpd_to_sci(init_price, 0);
     mpd_del(init_price);
 
     if (market_register(market_name, init_price_str) < 0) {
+        free(init_price_str);
         return reply_error_internal_error(ses, pkg);
     }
 
+    free(init_price_str);
     return reply_success(ses, pkg);
 }
 
