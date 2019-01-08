@@ -368,7 +368,8 @@ static int init_market(void)
     for (size_t i = 0; i < json_array_size(r); ++i) {
         json_t *item = json_array_get(r, i);
         const char *name = json_string_value(json_object_get(item, "name"));
-        log_debug("loading market - %s", name);
+        uint32_t money_prec = json_integer_value(json_object_get(item, "money_prec"));
+        mpd_t *closing_price = decimal(json_string_value(json_object_get(item, "closing_price")), money_prec);
 
         struct market_info *info = create_market(name);
         if (info == NULL) {
@@ -386,7 +387,9 @@ static int init_market(void)
             return -__LINE__;
         }
 
-
+        if (mpd_cmp(info->last, mpd_zero, &mpd_ctx) == 0)
+            info->last = mpd_qncopy(closing_price);
+        mpd_del(closing_price);
     }
     json_decref(r);
     redisFree(context);
@@ -411,6 +414,7 @@ static int reload_market()
     for (size_t i = 0; i < json_array_size(r); ++i) {
         json_t *item = json_array_get(r, i);
         const char *name = json_string_value(json_object_get(item, "name"));
+        uint32_t money_prec = json_integer_value(json_object_get(item, "money_prec"));
         const char *init_price = json_string_value(json_object_get(item, "init_price"));
 
         if (market_exist(name))
@@ -424,7 +428,7 @@ static int reload_market()
             return -__LINE__;
         }
 
-        info->last = decimal(init_price, 0);
+        info->last = decimal(init_price, money_prec);
     }
     json_decref(r);
 
