@@ -52,7 +52,7 @@ static int reply_json(nw_ses *ses, rpc_pkg *pkg, const json_t *json)
 static int reply_error(nw_ses *ses, rpc_pkg *pkg, int code, const char *message)
 {
     json_t *error = json_object();
-    json_object_set_new(error, "code", json_integer(code));
+    json_object_set_new(error, "code", json_integer(code+5000));
     json_object_set_new(error, "message", json_string(message));
 
     json_t *reply = json_object();

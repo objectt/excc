@@ -16,7 +16,7 @@ CREATE TABLE `market` (
   `id` int(5) unsigned NOT NULL AUTO_INCREMENT,
   `stock` int(5) unsigned NOT NULL,
   `currency` int(5) unsigned NOT NULL DEFAULT '1',
-  `fee_prec` tinyint(1) unsigned NOT NULL DEFAULT '2',
+  `fee_prec` tinyint(1) unsigned NOT NULL DEFAULT '4',
   `min_amount` decimal(10,8) unsigned NOT NULL DEFAULT '0.0001',
   `init_price` decimal(10,8) unsigned NOT NULL DEFAULT '0',
   `closing_price` decimal(10,8) unsigned NOT NULL DEFAULT '0',

@@ -339,7 +339,8 @@ int clear_slice(time_t timestamp)
     }
 
     sds sql = sdsempty();
-    sql = sdscatprintf(sql, "SELECT `id`, `time` FROM `slice_history` WHERE `time` < %ld", timestamp - settings.slice_keeptime);
+    sql = sdscatprintf(sql, "SELECT `id`, `time` FROM `slice_history` WHERE `time` < %ld",
+                       timestamp - settings.slice_keeptime);
     ret = mysql_real_query(conn, sql, sdslen(sql));
     if (ret != 0) {
         log_error("exec sql: %s fail: %d %s", sql, mysql_errno(conn), mysql_error(conn));

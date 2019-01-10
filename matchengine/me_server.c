@@ -48,7 +48,7 @@ static int reply_json(nw_ses *ses, rpc_pkg *pkg, const json_t *json)
 static int reply_error(nw_ses *ses, rpc_pkg *pkg, int code, const char *message)
 {
     json_t *error = json_object();
-    json_object_set_new(error, "code", json_integer(code));
+    json_object_set_new(error, "code", json_integer(code+5000));
     json_object_set_new(error, "message", json_string(message));
 
     json_t *reply = json_object();
@@ -661,7 +661,7 @@ static int on_cmd_order_cancel(nw_ses *ses, rpc_pkg *pkg, json_t *params)
         return reply_error(ses, pkg, 10, "order not found");
     }
     if (order->user_id != user_id) {
-        return reply_error(ses, pkg, 11, "user not match");
+        return reply_error(ses, pkg, 11, "user mismatch");
     }
 
     json_t *result = NULL;
@@ -976,6 +976,8 @@ static int on_cmd_market_list(nw_ses *ses, rpc_pkg *pkg, json_t *params)
 {
     json_t *result = json_array();
     for (int i = 0; i < settings.market_num; ++i) {
+        market_t *m = get_market(settings.markets[i].name);
+
         json_t *market = json_object();
         json_object_set_new(market, "name", json_string(settings.markets[i].name));
         json_object_set_new(market, "stock", json_string(settings.markets[i].stock));
@@ -986,6 +988,7 @@ static int on_cmd_market_list(nw_ses *ses, rpc_pkg *pkg, json_t *params)
         json_object_set_new_mpd(market, "min_amount", settings.markets[i].min_amount);
         json_object_set_new_mpd(market, "init_price", settings.markets[i].init_price);
         json_object_set_new_mpd(market, "closing_price", settings.markets[i].closing_price);
+        json_object_set_new_mpd(market, "last_price", m->last_price);
         json_array_append_new(result, market);
     }
 

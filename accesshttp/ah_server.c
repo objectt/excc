@@ -29,7 +29,7 @@ struct request_info {
 static void reply_error(nw_ses *ses, int64_t id, int code, const char *message, uint32_t status)
 {
     json_t *error = json_object();
-    json_object_set_new(error, "code", json_integer(code));
+    json_object_set_new(error, "code", json_integer(code+5000));
     json_object_set_new(error, "message", json_string(message));
     json_t *reply = json_object();
     json_object_set_new(reply, "error", error);
