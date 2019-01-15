@@ -1118,7 +1118,7 @@ static void svr_on_recv_pkg(nw_ses *ses, rpc_pkg *pkg)
         }
         break;
     case CMD_BALANCE_UPDATE:
-        if (is_operlog_block() || is_history_block() || is_message_block()) {
+        if (is_operlog_block() || is_history_block() || is_message_block() || signal_block) {
             log_fatal("service unavailable, operlog: %d, history: %d, message: %d",
                     is_operlog_block(), is_history_block(), is_message_block());
             reply_error_service_unavailable(ses, pkg);
@@ -1148,7 +1148,7 @@ static void svr_on_recv_pkg(nw_ses *ses, rpc_pkg *pkg)
     case CMD_ORDER_PUT_MARKET:
     case CMD_ORDER_PUT_AON:
     case CMD_ORDER_PUT_FOK:
-        if (is_operlog_block() || is_history_block() || is_message_block()) {
+        if (is_operlog_block() || is_history_block() || is_message_block() || signal_block) {
             log_fatal("service unavailable, operlog: %d, history: %d, message: %d",
                     is_operlog_block(), is_history_block(), is_message_block());
             reply_error_service_unavailable(ses, pkg);

@@ -14,6 +14,7 @@
 
 int signal_exit;
 int signal_reload;
+int signal_block = 0;
 
 struct signal {
     int signo;
@@ -67,8 +68,9 @@ static void signal_handler(int signo)
 
     switch (signo) {
     case SIGUSR1:
-        log_vip("[%d]signal: %d (%s) received", getpid(), signo, sig->signame);
         signal_reload = 1;
+        signal_block = signal_block ^ 1;
+        log_vip("[%d]signal: %d (%s) [signal_block = %d] received", getpid(), signo, sig->signame, signal_block);
         break;
     case SIGTTIN:
         dlog_level_up();

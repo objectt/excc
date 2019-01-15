@@ -8,6 +8,7 @@
 
 extern int signal_exit;
 extern int signal_reload;
+extern int signal_block;
 
 int init_signal(void);
 
