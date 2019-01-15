@@ -82,6 +82,17 @@ static int load_slice_from_db(MYSQL *conn, time_t timestamp)
         return -__LINE__;
     }
 
+    sdsclear(table);
+    table = sdscatprintf(table, "slice_market_%ld", timestamp);
+    log_stderr("load markets from: %s", table);
+    ret = load_markets(conn, table);
+    if (ret < 0) {
+        log_error("load_markets from %s fail: %d", table, ret);
+        log_stderr("load_markets from %s fail: %d", table, ret);
+        sdsfree(table);
+        return -__LINE__;
+    }
+
     sdsfree(table);
     return 0;
 }
@@ -202,6 +213,22 @@ static int dump_balance_to_db(MYSQL *conn, time_t end)
     return 0;
 }
 
+static int dump_markets_to_db(MYSQL *conn, time_t end)
+{
+    sds table = sdsempty();
+    table = sdscatprintf(table, "slice_market_%ld", end);
+    log_info("dump market to: %s", table);
+    int ret = dump_markets(conn, table);
+    if (ret < 0) {
+        log_error("dump_markets to %s fail: %d", table, ret);
+        sdsfree(table);
+        return -__LINE__;
+    }
+    sdsfree(table);
+
+    return 0;
+}
+
 int update_slice_history(MYSQL *conn, time_t end)
 {
     sds sql = sdsempty();
@@ -237,6 +264,12 @@ int dump_to_db(time_t timestamp)
     }
 
     ret = dump_balance_to_db(conn, timestamp);
+    if (ret < 0) {
+        goto cleanup;
+    }
+
+    // Dump market closing/last prices
+    ret = dump_markets_to_db(conn, timestamp);
     if (ret < 0) {
         goto cleanup;
     }
@@ -299,6 +332,15 @@ static int delete_slice(MYSQL *conn, uint64_t id, time_t timestamp)
     sdsclear(sql);
 
     sql = sdscatprintf(sql, "DROP TABLE `slice_balance_%ld`", timestamp);
+    log_trace("exec sql: %s", sql);
+    ret = mysql_real_query(conn, sql, sdslen(sql));
+    if (ret != 0) {
+        log_error("exec sql: %s fail: %d %s", sql, mysql_errno(conn), mysql_error(conn));
+        return -__LINE__;
+    }
+    sdsclear(sql);
+
+    sql = sdscatprintf(sql, "DROP TABLE `slice_market_%ld`", timestamp);
     log_trace("exec sql: %s", sql);
     ret = mysql_real_query(conn, sql, sdslen(sql));
     if (ret != 0) {

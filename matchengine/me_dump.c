@@ -174,6 +174,59 @@ static int dump_balance_dict(MYSQL *conn, const char *table, dict_t *dict)
     return 0;
 }
 
+static int dump_markets_dict(MYSQL *conn, const char *table)
+{
+    sds sql = sdsempty();
+
+    size_t insert_limit = 1000;
+    size_t index = 0;
+    for (int i = 0; i < settings.market_num; ++i) {
+        market_t *m = get_market(settings.markets[i].name);
+        if (m == NULL) {
+            sdsfree(sql);
+            return -__LINE__;
+        }
+
+        if (index == 0) {
+            sql = sdscatprintf(sql, "INSERT INTO `%s` (`market`, `closing_price`, `last_price`) "
+                                    "VALUES ", table);
+        } else {
+            sql = sdscatprintf(sql, ", ");
+        }
+
+        sql = sdscatprintf(sql, "('%s', ", m->name);
+        sql = sql_append_mpd(sql, m->closing_price, true);
+        sql = sql_append_mpd(sql, m->last_price, false);
+        sql = sdscatprintf(sql, ")");
+
+        index += 1;
+        if (index == insert_limit) {
+            log_trace("exec sql: %s", sql);
+            int ret = mysql_real_query(conn, sql, sdslen(sql));
+            if (ret < 0) {
+                log_error("exec sql: %s fail: %d %s", sql, mysql_errno(conn), mysql_error(conn));
+                sdsfree(sql);
+                return -__LINE__;
+            }
+            sdsclear(sql);
+            index = 0;
+        }
+    }
+
+    if (index > 0) {
+        log_trace("exec sql: %s", sql);
+        int ret = mysql_real_query(conn, sql, sdslen(sql));
+        if (ret < 0) {
+            log_error("exec sql: %s fail: %d %s", sql, mysql_errno(conn), mysql_error(conn));
+            sdsfree(sql);
+            return -__LINE__;
+        }
+    }
+
+    sdsfree(sql);
+    return 0;
+}
+
 int dump_balance(MYSQL *conn, const char *table)
 {
     sds sql = sdsempty();
@@ -200,6 +253,38 @@ int dump_balance(MYSQL *conn, const char *table)
     ret = dump_balance_dict(conn, table, dict_balance);
     if (ret < 0) {
         log_error("dump_balance_dict fail: %d", ret);
+        return -__LINE__;
+    }
+
+    return 0;
+}
+
+int dump_markets(MYSQL *conn, const char *table)
+{
+    sds sql = sdsempty();
+    sql = sdscatprintf(sql, "DROP TABLE IF EXISTS `%s`", table);
+    log_trace("exec sql: %s", sql);
+    int ret = mysql_real_query(conn, sql, sdslen(sql));
+    if (ret != 0) {
+        log_error("exec sql: %s fail: %d %s", sql, mysql_errno(conn), mysql_error(conn));
+        sdsfree(sql);
+        return -__LINE__;
+    }
+    sdsclear(sql);
+
+    sql = sdscatprintf(sql, "CREATE TABLE IF NOT EXISTS `%s` LIKE `slice_market_example`", table);
+    log_trace("exec sql: %s", sql);
+    ret = mysql_real_query(conn, sql, sdslen(sql));
+    if (ret != 0) {
+        log_error("exec sql: %s fail: %d %s", sql, mysql_errno(conn), mysql_error(conn));
+        sdsfree(sql);
+        return -__LINE__;
+    }
+    sdsfree(sql);
+
+    ret = dump_markets_dict(conn, table);
+    if (ret < 0) {
+        log_error("dump market failed: %d", ret);
         return -__LINE__;
     }
 
