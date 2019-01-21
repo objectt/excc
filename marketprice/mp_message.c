@@ -984,7 +984,7 @@ static struct kline_info *get_last_kline(dict_t *dict, time_t start, time_t end,
     return NULL;
 }
 
-json_t *get_market_status(const char *market, int period)
+json_t *get_market_status(const char *market, int period, time_t start)
 {
     struct market_info *info = market_query(market);
     if (info == NULL)
@@ -992,7 +992,10 @@ json_t *get_market_status(const char *market, int period)
 
     struct kline_info *kinfo = NULL;
     time_t now = time(NULL);
-    time_t start = now - period;
+    if (start == 0)
+        start = now - period;
+    else if (start < now - settings.sec_max)
+        start = now - settings.sec_max;
     time_t start_min = start / 60 * 60 + 60;
 
     for (time_t timestamp = start; timestamp < start_min; timestamp++) {
