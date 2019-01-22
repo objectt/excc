@@ -284,6 +284,7 @@ market_t *market_create(struct market *conf)
     m->min_amount       = mpd_qncopy(conf->min_amount);
     m->last_price       = mpd_qncopy(conf->closing_price);
     m->closing_price    = mpd_qncopy(conf->closing_price);
+    m->include_fee      = true;
 
     dict_types dt;
     memset(&dt, 0, sizeof(dt));
@@ -435,7 +436,11 @@ static int execute_limit_ask_order(bool real, market_t *m, order_t *taker)
         mpd_copy(price, maker->price, &mpd_ctx);
         mpd_mul(deal, price, amount, &mpd_ctx);
         mpd_mul(ask_fee, deal, taker->taker_fee, &mpd_ctx);
-        mpd_mul(bid_fee, amount, maker->maker_fee, &mpd_ctx);
+
+        if (!m->include_fee)
+            mpd_mul(bid_fee, amount, maker->maker_fee, &mpd_ctx);
+        else
+            mpd_mul(bid_fee, deal, maker->maker_fee, &mpd_ctx);
 
         taker->update_time = maker->update_time = current_timestamp();
         uint64_t deal_id = ++deals_id_start;
@@ -479,9 +484,10 @@ static int execute_limit_ask_order(bool real, market_t *m, order_t *taker)
             append_balance_trade_add(maker, m->stock, amount, price, amount);
         }
         if (mpd_cmp(bid_fee, mpd_zero, &mpd_ctx) > 0) {
-            balance_sub(maker->user_id, BALANCE_TYPE_AVAILABLE, m->stock, bid_fee);
+            char *fee_currency = m->include_fee? m->money : m->stock;
+            balance_sub(maker->user_id, BALANCE_TYPE_AVAILABLE, fee_currency, bid_fee);
             if (real) {
-                append_balance_trade_fee(maker, m->stock, bid_fee, price, amount, maker->maker_fee);
+                append_balance_trade_fee(maker, fee_currency, bid_fee, price, amount, maker->maker_fee);
             }
         }
 
@@ -544,7 +550,11 @@ static int execute_limit_bid_order(bool real, market_t *m, order_t *taker)
         mpd_copy(price, maker->price, &mpd_ctx);
         mpd_mul(deal, price, amount, &mpd_ctx);
         mpd_mul(ask_fee, deal, maker->maker_fee, &mpd_ctx);
-        mpd_mul(bid_fee, amount, taker->taker_fee, &mpd_ctx);
+
+        if (!m->include_fee)
+            mpd_mul(bid_fee, amount, taker->taker_fee, &mpd_ctx);
+        else
+            mpd_mul(bid_fee, deal, taker->taker_fee, &mpd_ctx);
 
         taker->update_time = maker->update_time = current_timestamp();
         uint64_t deal_id = ++deals_id_start;
@@ -567,9 +577,10 @@ static int execute_limit_bid_order(bool real, market_t *m, order_t *taker)
             append_balance_trade_add(taker, m->stock, amount, price, amount);
         }
         if (mpd_cmp(bid_fee, mpd_zero, &mpd_ctx) > 0) {
-            balance_sub(taker->user_id, BALANCE_TYPE_AVAILABLE, m->stock, bid_fee);
+            char *fee_currency = m->include_fee? m->money : m->stock;
+            balance_sub(taker->user_id, BALANCE_TYPE_AVAILABLE, fee_currency, bid_fee);
             if (real) {
-                append_balance_trade_fee(taker, m->stock, bid_fee, price, amount, taker->taker_fee);
+                append_balance_trade_fee(taker, fee_currency, bid_fee, price, amount, taker->taker_fee);
             }
         }
 
@@ -864,6 +875,14 @@ int market_put_limit_order(bool real, json_t **result, market_t *m, uint32_t use
         mpd_t *balance = balance_get(user_id, BALANCE_TYPE_AVAILABLE, m->money);
         mpd_t *require = mpd_new(&mpd_ctx);
         mpd_mul(require, amount, price, &mpd_ctx);
+
+        if (m->include_fee) {
+            mpd_t *max_fee = mpd_new(&mpd_ctx);
+            mpd_mul(max_fee, require, taker_fee, &mpd_ctx);
+            mpd_add(require, require, max_fee, &mpd_ctx);
+            mpd_del(max_fee);
+        }
+
         if (!balance || mpd_cmp(balance, require, &mpd_ctx) < 0) {
             mpd_del(require);
             return -1;

@@ -49,6 +49,8 @@ typedef struct market_t {
 
     mpd_t           *last_price;
     mpd_t           *closing_price;
+
+    bool            include_fee;
 } market_t;
 
 market_t *market_create(struct market *conf);
