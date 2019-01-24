@@ -876,17 +876,23 @@ int market_put_limit_order(bool real, json_t **result, market_t *m, uint32_t use
         mpd_t *require = mpd_new(&mpd_ctx);
         mpd_mul(require, amount, price, &mpd_ctx);
 
+        if (!balance || mpd_cmp(balance, require, &mpd_ctx) < 0) {
+            mpd_del(require);
+            return -1;
+        }
+
         if (m->include_fee) {
             mpd_t *max_fee = mpd_new(&mpd_ctx);
             mpd_mul(max_fee, require, taker_fee, &mpd_ctx);
             mpd_add(require, require, max_fee, &mpd_ctx);
             mpd_del(max_fee);
+
+            if (!balance || mpd_cmp(balance, require, &mpd_ctx) < 0) {
+                mpd_del(require);
+                return -5;
+            }
         }
 
-        if (!balance || mpd_cmp(balance, require, &mpd_ctx) < 0) {
-            mpd_del(require);
-            return -1;
-        }
         mpd_del(require);
     }
 
