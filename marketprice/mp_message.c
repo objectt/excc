@@ -1027,8 +1027,11 @@ json_t *get_market_status(const char *market, int period, time_t start)
         kline_info_merge(kinfo, sinfo);
     }
 
-    if (kinfo == NULL)
-        kinfo = kline_info_new(mpd_zero);
+    if (kinfo == NULL) {
+        kinfo = get_last_kline(info->sec, start - 1, now - settings.sec_max, 1);
+        if (kinfo == NULL)
+            kinfo = kline_info_new(mpd_zero);
+    }
 
     json_t *result = json_object();
     json_object_set_new(result, "period", json_integer(period));
