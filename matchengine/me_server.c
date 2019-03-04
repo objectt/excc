@@ -539,13 +539,13 @@ invalid_order:
     mpd_del(maker_fee);
 
     if (ret == -1)
-        return reply_error(ses, pkg, 10, "balance not enough");
+        return reply_error(ses, pkg, 10, "insufficient balance");
     else if (ret == -2)
-        return reply_error(ses, pkg, 11, "amount too small");
+        return reply_error(ses, pkg, 11, "invalid amount");
     else if (ret == -4)
         return reply_error(ses, pkg, 12, "price out of range");
     else if (ret == -5)
-        return reply_error(ses, pkg, 13, "balance not enough");
+        return reply_error(ses, pkg, 13, "insufficient balance");
     else if (ret < 0) {
         log_fatal("market_put_limit_order fail: %d", ret);
         return reply_error_internal_error(ses, pkg);

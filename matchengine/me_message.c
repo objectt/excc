@@ -190,13 +190,16 @@ int push_balance_message(double t, uint32_t user_id, const char *asset, const ch
     return 0;
 }
 
-int push_order_message(uint32_t event, order_t *order, market_t *market)
+int push_order_message(uint32_t event, order_t *order, market_t *market, mpd_t *filled)
 {
     json_t *message = json_object();
     json_object_set_new(message, "event", json_integer(event));
     json_object_set_new(message, "order", get_order_info(order));
     json_object_set_new(message, "stock", json_string(market->stock));
     json_object_set_new(message, "money", json_string(market->money));
+
+    json_t *morder = json_object_get(message, "order");
+    json_object_set_new_mpd(morder, "filled", filled);
 
     push_message(json_dumps(message, 0), rkt_orders, list_orders);
     json_decref(message);
