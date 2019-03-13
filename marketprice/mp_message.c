@@ -1395,6 +1395,7 @@ json_t *get_market_kline_month(const char *market, time_t start, time_t end, int
         }
         if (kinfo == NULL) {
             if (klast == NULL) {
+                mon_start = mon_next;
                 continue;
             }
             kinfo = kline_info_new(klast->close);
