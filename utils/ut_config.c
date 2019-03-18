@@ -374,6 +374,20 @@ int load_cfg_kafka_consumer(json_t *root, const char *key, kafka_consumer_cfg *c
     return 0;
 }
 
+int load_cfg_kafka_producer(json_t *root, const char *key, kafka_producer_cfg *cfg)
+{
+    json_t *node = json_object_get(root, key);
+    if (!node || !json_is_object(node))
+        return -__LINE__;
+
+    ERR_RET(read_cfg_str(node, "brokers", &cfg->brokers, NULL));
+    ERR_RET(read_cfg_str(node, "topic_balances", &cfg->topic_balances, NULL));
+    ERR_RET(read_cfg_str(node, "topic_deals", &cfg->topic_deals, NULL));
+    ERR_RET(read_cfg_str(node, "topic_orders", &cfg->topic_orders, NULL));
+
+    return 0;
+}
+
 int load_cfg_redis_sentinel(json_t *root, const char *key, redis_sentinel_cfg *cfg)
 {
     json_t *node = json_object_get(root, key);

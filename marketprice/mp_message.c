@@ -958,8 +958,8 @@ int init_message(void)
     nw_timer_set(&market_timer, 10, true, on_market_timer, NULL);
     nw_timer_start(&market_timer);
 
-    // XXX Temporary
-    nw_periodic_set(&config_periodic, 1545067800, 125, on_config_periodic, NULL);
+    // Load new market from ME
+    nw_periodic_set(&config_periodic, 1545067800, 3600, on_config_periodic, NULL);
     nw_periodic_start(&config_periodic);
 
     nw_timer_set(&clear_timer, 3600, true, on_clear_timer, NULL);
