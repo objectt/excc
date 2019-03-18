@@ -98,6 +98,14 @@ int redis_sentinel_get_master_addr(redis_sentinel_t *context, redis_addr *addr)
             curr = curr->next;
             continue;
         }
+
+        // Assume only the master node is listed
+        move_to_front(context, curr);
+        addr->host = strdup(curr->addr.host);
+        addr->port = curr->addr.port;
+        redisFree(redis);
+
+#if 0
         redisReply *reply = redisCommand(redis, "SENTINEL get-master-addr-by-name %s", context->name);
         if (reply == NULL || reply->type != REDIS_REPLY_ARRAY || reply->elements != 2) {
             if (reply) {
@@ -113,6 +121,7 @@ int redis_sentinel_get_master_addr(redis_sentinel_t *context, redis_addr *addr)
         addr->port = atoi(reply->element[1]->str);
         freeReplyObject(reply);
         redisFree(redis);
+#endif
 
         return 0;
     }
