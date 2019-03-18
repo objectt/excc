@@ -107,19 +107,19 @@ int main(int argc, char *argv[])
     if (ret < 0) {
         error(EXIT_FAILURE, errno, "init from db fail: %d", ret);
     }
-    ret = init_operlog();
+    ret = init_operlog();   // flush operlog sql
     if (ret < 0) {
         error(EXIT_FAILURE, errno, "init oper log fail: %d", ret);
     }
-    ret = init_history();
+    ret = init_history();   // flush history sql
     if (ret < 0) {
         error(EXIT_FAILURE, errno, "init history fail: %d", ret);
     }
-    ret = init_message();
+    ret = init_message();   // kafka producer
     if (ret < 0) {
         error(EXIT_FAILURE, errno, "init message fail: %d", ret);
     }
-    ret = init_persist();
+    ret = init_persist();   // slice
     if (ret < 0) {
         error(EXIT_FAILURE, errno, "init persist fail: %d", ret);
     }
@@ -127,11 +127,11 @@ int main(int argc, char *argv[])
     if (ret < 0) {
         error(EXIT_FAILURE, errno, "init cli fail: %d", ret);
     }
-    ret = init_server();
+    ret = init_server();    // cache
     if (ret < 0) {
         error(EXIT_FAILURE, errno, "init server fail: %d", ret);
     }
-    ret = init_job();
+    ret = init_job();   // load new asset + set closing price
     if (ret < 0) {
         error(EXIT_FAILURE, errno, "init job fail: %d", ret);
     }

@@ -499,12 +499,18 @@ static int on_cmd_order_put(nw_ses *ses, rpc_pkg *pkg, json_t *params)
 
     // 3) Price Limits
     if (is_price_setter) {
-        if (mpd_cmp(price, asset_min_amount(market->money), &mpd_ctx) < 0
+        mpd_t *total = mpd_new(&mpd_ctx);
+        mpd_mul(total, price, amount, &mpd_ctx);
+        mpd_rescale(total, total, -asset_prec(market->money), &mpd_ctx);
+
+        if (mpd_cmp(total, asset_min_amount(market->money), &mpd_ctx) < 0
             || !check_price_limit(market->last_price, price, "0.3")
             || !check_price_limit(market->closing_price, price, "0.5")) {
             ret = -4;
+            mpd_del(total);
             goto invalid_order;
         }
+        mpd_del(total);
     }
 
     switch(pkg->command) {

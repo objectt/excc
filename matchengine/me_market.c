@@ -493,13 +493,15 @@ static int execute_limit_ask_order(bool real, market_t *m, order_t *taker)
             append_balance_trade_add(maker, m->stock, amount, price, amount);
         }
         if (mpd_cmp(bid_fee, mpd_zero, &mpd_ctx) > 0) {
+            char *fee_currency = m->include_fee? m->money : m->stock;
             if (m->include_fee) {
                 mpd_sub(maker->freeze, maker->freeze, bid_fee, &mpd_ctx);
-                balance_sub(maker->user_id, BALANCE_TYPE_FREEZE, m->money, bid_fee);
+                balance_sub(maker->user_id, BALANCE_TYPE_FREEZE, fee_currency, bid_fee);
+            }
+            else {
+                balance_sub(maker->user_id, BALANCE_TYPE_AVAILABLE, fee_currency, bid_fee);
             }
 
-            char *fee_currency = m->include_fee? m->money : m->stock;
-            balance_sub(maker->user_id, BALANCE_TYPE_AVAILABLE, fee_currency, bid_fee);
             if (real) {
                 append_balance_trade_fee(maker, fee_currency, bid_fee, price, amount, maker->maker_fee);
             }

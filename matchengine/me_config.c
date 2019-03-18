@@ -41,7 +41,10 @@ static int load_assets_from_db(MYSQL *conn)
         settings.assets[i].name = strdup(row[1]);
         settings.assets[i].prec_save = strtoul(row[2], NULL, 0);
         settings.assets[i].prec_show = strtoul(row[3], NULL, 0);
-        settings.assets[i].min_amount = decimal(row[4], 0);
+        settings.assets[i].min_amount = decimal(row[4], settings.assets[i].prec_save);
+
+        log_debug("asset loaded - %s, %s",
+                  settings.assets[i].name, mpd_to_sci(settings.assets[i].min_amount, 0));
     }
     mysql_free_result(result);
 
@@ -89,12 +92,13 @@ static int update_assets_from_db(MYSQL *conn)
         settings.assets[i].name = strdup(row[1]);
         settings.assets[i].prec_save = strtoul(row[2], NULL, 0);
         settings.assets[i].prec_show = strtoul(row[3], NULL, 0);
-        settings.assets[i].min_amount = decimal(row[4], 0);
+        settings.assets[i].min_amount = decimal(row[4], settings.assets[i].prec_save);
 
         update_asset(&(settings.assets[i])); // update dict_asset
         asset_cnt++;
 
-        log_debug("new asset loaded - %s", settings.assets[i].name);
+        log_debug("new asset loaded - %s, %s",
+                  settings.assets[i].name, mpd_to_sci(settings.assets[i].min_amount, 0));
     }
     mysql_free_result(result);
 
@@ -128,14 +132,14 @@ static int load_market_from_db(MYSQL *conn)
         settings.markets[i].id = strtoul(row[8], NULL, 0);
         settings.markets[i].name = strdup(row[0]);
         settings.markets[i].fee_prec = strtoul(row[5], NULL, 0);
-        settings.markets[i].min_amount = decimal(row[2], 0);
+        settings.markets[i].min_amount = decimal(row[2], 8);
 
         settings.markets[i].stock = strdup(row[0]);
         settings.markets[i].stock_prec = strtoul(row[1], NULL, 0);
         settings.markets[i].money = strdup(row[3]);
         settings.markets[i].money_prec = strtoul(row[4], NULL, 0);
-        settings.markets[i].init_price = decimal(row[6], 0);
-        settings.markets[i].closing_price = decimal(row[7], 0);
+        settings.markets[i].init_price = decimal(row[6], 8);
+        settings.markets[i].closing_price = decimal(row[7], 8);
     }
     mysql_free_result(result);
 
@@ -272,9 +276,9 @@ static int read_config_from_json(json_t *root)
         printf("load history db config fail: %d\n", ret);
         return -__LINE__;
     }
-    ret = read_cfg_str(root, "brokers", &settings.brokers, NULL);
+    ret = load_cfg_kafka_producer(root, "kafka", &settings.producer);
     if (ret < 0) {
-        printf("load brokers fail: %d\n", ret);
+        printf("load kafka config fail: %d\n", ret);
         return -__LINE__;
     }
     ret = read_cfg_int(root, "slice_interval", &settings.slice_interval, false, 86400);
@@ -316,7 +320,7 @@ static void update_market_closing_price(MYSQL *conn)
         log_debug("set closing price - %s = %s", m->name, closing_price);
 
         sql = sdscatprintf(sql, "UPDATE market SET closing_price = '%s', "
-                                "update_date = CURRENT_TIMESTAMP() WHERE id = %d",
+                                "update_time = CURRENT_TIMESTAMP() WHERE id = %d",
                            closing_price, settings.markets[i].id);
 
         int ret = mysql_real_query(conn, sql, sdslen(sql));
@@ -364,10 +368,10 @@ static void on_min_periodic(nw_periodic *p, void *data)
 
 static void on_daily_periodic(nw_periodic *periodic, void *data)
 {
-    struct job_request *req = malloc(sizeof(struct job_request));
-    memset(req, 0, sizeof(struct job_request));
-    req->callback_fn = update_market_closing_price;
-    nw_job_add(job, 0, req);
+    struct job_request *req_1 = malloc(sizeof(struct job_request));
+    memset(req_1, 0, sizeof(struct job_request));
+    req_1->callback_fn = update_market_closing_price;
+    nw_job_add(job, 0, req_1);
 }
 
 int init_config(const char *path)

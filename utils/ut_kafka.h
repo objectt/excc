@@ -18,6 +18,13 @@
 
 typedef void (*kafka_message_callback)(sds message, int64_t offset);
 
+typedef struct kafka_producer_cfg {
+    char    *brokers;
+    char    *topic_deals;
+    char    *topic_orders;
+    char    *topic_balances;
+} kafka_producer_cfg;
+
 typedef struct kafka_consumer_cfg {
     char    *brokers;
     char    *topic;
