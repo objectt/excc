@@ -381,9 +381,9 @@ int load_cfg_kafka_producer(json_t *root, const char *key, kafka_producer_cfg *c
         return -__LINE__;
 
     ERR_RET(read_cfg_str(node, "brokers", &cfg->brokers, NULL));
-    ERR_RET(read_cfg_str(node, "topic_balances", &cfg->topic_balances, "balances"));
-    ERR_RET(read_cfg_str(node, "topic_deals", &cfg->topic_deals, "deals"));
-    ERR_RET(read_cfg_str(node, "topic_orders", &cfg->topic_orders, "orders"));
+    ERR_RET(read_cfg_str(node, "topic_balances", &cfg->topic_balances, NULL));
+    ERR_RET(read_cfg_str(node, "topic_deals", &cfg->topic_deals, NULL));
+    ERR_RET(read_cfg_str(node, "topic_orders", &cfg->topic_orders, NULL));
 
     return 0;
 }
