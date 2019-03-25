@@ -12,7 +12,7 @@ struct settings settings;
 
 static nw_job *job;
 static nw_periodic daily_periodic;
-static nw_periodic min_periodic;
+//static nw_periodic min_periodic;
 
 struct job_request {
     void (*callback_fn)(MYSQL*);
