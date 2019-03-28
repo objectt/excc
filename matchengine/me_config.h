@@ -87,11 +87,12 @@ struct settings {
     size_t              market_num;
     struct market       *markets;
 
-    char                *brokers;
     int                 slice_interval;
     int                 slice_keeptime;
     int                 history_thread;
     double              cache_timeout;
+
+    kafka_producer_cfg  producer;
 };
 
 extern struct settings settings;

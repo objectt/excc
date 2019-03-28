@@ -77,12 +77,12 @@ int init_message(void)
 {
     char errstr[1024];
     rd_kafka_conf_t *conf = rd_kafka_conf_new();
-    if (rd_kafka_conf_set(conf, "bootstrap.servers", settings.brokers, errstr, sizeof(errstr)) != RD_KAFKA_CONF_OK) {
-        log_stderr("Set kafka brokers: %s fail: %s", settings.brokers, errstr);
+    if (rd_kafka_conf_set(conf, "bootstrap.servers", (&settings.producer)->brokers, errstr, sizeof(errstr)) != RD_KAFKA_CONF_OK) {
+        log_stderr("Set kafka brokers: %s fail: %s", (&settings.producer)->brokers, errstr);
         return -__LINE__;
     }
     if (rd_kafka_conf_set(conf, "queue.buffering.max.ms", "1", errstr, sizeof(errstr)) != RD_KAFKA_CONF_OK) {
-        log_stderr("Set kafka buffering: %s fail: %s", settings.brokers, errstr);
+        log_stderr("Set kafka buffering: %s fail: %s", (&settings.producer)->brokers, errstr);
         return -__LINE__;
     }
     rd_kafka_conf_set_log_cb(conf, on_logger);
@@ -94,17 +94,17 @@ int init_message(void)
         return -__LINE__;
     }
 
-    rkt_balances = rd_kafka_topic_new(rk, "balances", NULL);
+    rkt_balances = rd_kafka_topic_new(rk, (&settings.producer)->topic_balances, NULL);
     if (rkt_balances == NULL) {
         log_stderr("Failed to create topic object: %s", rd_kafka_err2str(rd_kafka_last_error()));
         return -__LINE__;
     }
-    rkt_orders = rd_kafka_topic_new(rk, "orders", NULL);
+    rkt_orders = rd_kafka_topic_new(rk, (&settings.producer)->topic_orders, NULL);
     if (rkt_orders == NULL) {
         log_stderr("Failed to create topic object: %s", rd_kafka_err2str(rd_kafka_last_error()));
         return -__LINE__;
     }
-    rkt_deals = rd_kafka_topic_new(rk, "deals", NULL);
+    rkt_deals = rd_kafka_topic_new(rk, (&settings.producer)->topic_deals, NULL);
     if (rkt_deals == NULL) {
         log_stderr("Failed to create topic object: %s", rd_kafka_err2str(rd_kafka_last_error()));
         return -__LINE__;
@@ -190,13 +190,16 @@ int push_balance_message(double t, uint32_t user_id, const char *asset, const ch
     return 0;
 }
 
-int push_order_message(uint32_t event, order_t *order, market_t *market)
+int push_order_message(uint32_t event, order_t *order, market_t *market, mpd_t *filled)
 {
     json_t *message = json_object();
     json_object_set_new(message, "event", json_integer(event));
     json_object_set_new(message, "order", get_order_info(order));
     json_object_set_new(message, "stock", json_string(market->stock));
     json_object_set_new(message, "money", json_string(market->money));
+
+    json_t *morder = json_object_get(message, "order");
+    json_object_set_new_mpd(morder, "filled", filled);
 
     push_message(json_dumps(message, 0), rkt_orders, list_orders);
     json_decref(message);

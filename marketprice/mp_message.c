@@ -799,7 +799,7 @@ static void clear_kline(void)
     while ((entry = dict_next(iter)) != NULL) {
         struct market_info *info = entry->val;
         clear_dict(info->sec, now - settings.sec_max);
-        clear_dict(info->sec, now / 60 * 60 - settings.min_max * 60);
+        clear_dict(info->min, now / 60 * 60 - settings.min_max * 60);
         clear_dict(info->hour, now / 3600 * 3600 - settings.hour_max * 3600);
     }
     dict_release_iterator(iter);
@@ -958,8 +958,8 @@ int init_message(void)
     nw_timer_set(&market_timer, 10, true, on_market_timer, NULL);
     nw_timer_start(&market_timer);
 
-    // XXX Temporary
-    nw_periodic_set(&config_periodic, 1545067800, 125, on_config_periodic, NULL);
+    // Load new market from ME
+    nw_periodic_set(&config_periodic, 1545067800, 3600, on_config_periodic, NULL);
     nw_periodic_start(&config_periodic);
 
     nw_timer_set(&clear_timer, 3600, true, on_clear_timer, NULL);
@@ -1027,11 +1027,8 @@ json_t *get_market_status(const char *market, int period, time_t start)
         kline_info_merge(kinfo, sinfo);
     }
 
-    if (kinfo == NULL) {
-        kinfo = get_last_kline(info->sec, start - 1, now - settings.sec_max, 1);
-        if (kinfo == NULL)
-            kinfo = kline_info_new(mpd_zero);
-    }
+    if (kinfo == NULL)
+        kinfo = kline_info_new(mpd_zero);
 
     json_t *result = json_object();
     json_object_set_new(result, "period", json_integer(period));
@@ -1398,6 +1395,7 @@ json_t *get_market_kline_month(const char *market, time_t start, time_t end, int
         }
         if (kinfo == NULL) {
             if (klast == NULL) {
+                mon_start = mon_next;
                 continue;
             }
             kinfo = kline_info_new(klast->close);
