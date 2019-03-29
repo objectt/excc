@@ -13,7 +13,7 @@ struct asset_type {
     uint32_t id;
     int prec_save;
     int prec_show;
-    mpd_t *min_amount;
+    mpd_t *tick_size;
 };
 
 static uint32_t asset_dict_hash_function(const void *key)
@@ -123,7 +123,7 @@ int init_balance()
         type.id = settings.assets[i].id;
         type.prec_save = settings.assets[i].prec_save;
         type.prec_show = settings.assets[i].prec_show;
-        type.min_amount = settings.assets[i].min_amount;
+        type.tick_size = settings.assets[i].tick_size;
 
         if (dict_add(dict_asset, settings.assets[i].name, &type) == NULL)
             return -__LINE__;
@@ -132,13 +132,13 @@ int init_balance()
     return 0;
 }
 
-void update_asset(asset_info_t *asset)
+void update_asset_dict(asset_info_t *asset)
 {
     struct asset_type type;
+    type.id = asset->id;
     type.prec_save = asset->prec_save;
     type.prec_show = asset->prec_show;
-    type.min_amount = asset->min_amount;
-    type.id = asset->id;
+    type.tick_size = asset->tick_size;
 
     dict_add(dict_asset, asset->name, &type);
 }
@@ -170,16 +170,16 @@ int asset_prec_show(const char *asset)
     return at ? at->prec_show: -1;
 }
 
-uint32_t asset_idx(const char *asset)
+uint32_t asset_id(const char *asset)
 {
     struct asset_type *at = get_asset_type(asset);
-    return at->id;
+    return at ? at->id: -1;
 }
 
-mpd_t *asset_min_amount(const char *asset)
+mpd_t *asset_tick_size(const char *asset)
 {
     struct asset_type *at = get_asset_type(asset);
-    return at->min_amount;
+    return at->tick_size;
 }
 
 mpd_t *balance_get(uint32_t user_id, uint32_t type, const char *asset)

@@ -368,7 +368,7 @@ static int init_market(void)
 
     for (size_t i = 0; i < json_array_size(r); ++i) {
         json_t *item = json_array_get(r, i);
-        const char *name = json_string_value(json_object_get(item, "name"));
+        const char *name = json_string_value(json_object_get(item, "symbol"));
         uint32_t money_prec = json_integer_value(json_object_get(item, "money_prec"));
         mpd_t *last_price = decimal(json_string_value(json_object_get(item, "last_price")), money_prec);
 
@@ -510,6 +510,7 @@ static int market_update(const char *market, double timestamp, mpd_t *price, mpd
     // update last
     mpd_copy(info->last, price, &mpd_ctx);
 
+    // omit dummy deal
     if (mpd_cmp(amount, mpd_zero, &mpd_ctx) == 0) {
         info->update_time = current_timestamp();
         return 0;
@@ -816,7 +817,7 @@ static int load_new_markets()
     time_t now = time(NULL);
     for (size_t i = 0; i < json_array_size(r); ++i) {
         json_t *item = json_array_get(r, i);
-        const char *name = json_string_value(json_object_get(item, "name"));
+        const char *name = json_string_value(json_object_get(item, "symbol"));
         uint32_t money_prec = json_integer_value(json_object_get(item, "money_prec"));
         const char *init_price = json_string_value(json_object_get(item, "init_price"));
 
@@ -831,7 +832,7 @@ static int load_new_markets()
         }
 
         mpd_t *price = decimal(init_price, money_prec);
-        int ret = market_update(name, now, price, mpd_zero, 0, 0);
+        int ret = market_update(name, now, price, mpd_zero, 0, 0);  // Dummy sell at 0
         mpd_del(price);
         if (ret < 0)
             log_error("market_update fail %d, message: %s", ret, name);

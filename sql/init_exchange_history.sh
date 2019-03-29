@@ -2,8 +2,8 @@
 
 MYSQL_HOST="localhost"
 MYSQL_USER="root"
-MYSQL_PASS="1234"
-MYSQL_DB="trade_history"
+MYSQL_PASS="eXch@ngE"
+MYSQL_DB="exchange_history"
 
 for i in `seq 0 99`
 do

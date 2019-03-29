@@ -15,6 +15,7 @@ typedef struct order_t {
     uint64_t        id;
     uint32_t        type;
     uint32_t        side;
+    uint32_t        role;
     double          create_time;
     double          update_time;
     uint32_t        user_id;
@@ -32,25 +33,34 @@ typedef struct order_t {
 } order_t;
 
 typedef struct market_t {
-    char            *name;
-    char            *stock;
-    char            *money;
+    char            *name;          // ticker
+    char            *name_full;     // name
+    char            *stock;         // base currency
+    char            *money;         // counter currency
+    char            *fee;           // fee currency
+    bool            include_fee;
 
     int             stock_prec;
     int             money_prec;
     int             fee_prec;
-    mpd_t           *min_amount;
-
+    
     dict_t          *orders;
     dict_t          *users;
 
     skiplist_t      *asks;
     skiplist_t      *bids;
 
+    mpd_t           *min_amount;
+    mpd_t           *max_amount;
+    mpd_t           *min_price;
+    mpd_t           *max_price;
+    mpd_t           *min_total;
+    mpd_t           *init_price;
     mpd_t           *last_price;
     mpd_t           *closing_price;
 
-    bool            include_fee;
+    time_t          delisting_ts;
+    json_t          *info;
 } market_t;
 
 market_t *market_create(struct market *conf);
@@ -70,7 +80,9 @@ skiplist_t *market_get_order_list(market_t *m, uint32_t user_id);
 
 sds market_status(sds reply);
 
-int market_register(const char *asset, char *init_price);
+int asset_register(const char *ticker, const char *name, const char *tick_size);
+int market_register(const char *ticker, const char *name, int base_id, int counter_id,
+                    const char *init_price, uint32_t delisting_ts);
 json_t *market_detail(market_t *market);
 int add_user_to_market(const char *market, uint32_t user_id);
 bool check_price_limit(mpd_t *cmp_price, mpd_t *price, const char *pct);

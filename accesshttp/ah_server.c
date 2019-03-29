@@ -63,12 +63,23 @@ static void reply_time_out(nw_ses *ses, int64_t id)
     reply_error(ses, id, 5, "service timeout", 504);
 }
 
+static void reply_ok_request(nw_ses *ses)
+{
+    send_http_response_simple(ses, 200, NULL, 0);
+}
+
 static int on_http_request(nw_ses *ses, http_request_t *request)
 {
     log_trace("new http request, url: %s, method: %u", request->url, request->method);
-    if (request->method != HTTP_POST || !request->body) {
+    if ((request->method != HTTP_POST && request->method != HTTP_OPTIONS) ||
+	    (request->method == HTTP_POST && !request->body)) {
         reply_bad_request(ses);
         return -__LINE__;
+    }
+
+    if (request->method == HTTP_OPTIONS) {
+        reply_ok_request(ses);
+	    return 0;
     }
 
     json_t *body = json_loadb(request->body, sdslen(request->body), 0, NULL);
@@ -103,23 +114,66 @@ static int on_http_request(nw_ses *ses, http_request_t *request)
         // Verify Bearer JWT
         const char *authorization = http_request_get_header(request, "Authorization");
         if (authorization != NULL) {
-            const char *key_file = "./key.pem";
-            unsigned char key[16384];
-            FILE *fp = fopen(key_file, "r");
-            size_t key_len = fread(key, 1, sizeof(key), fp);
-            fclose(fp);
-            key[key_len] = '\0';
+            jwt_t *jwt = NULL;
+	        const char *token = authorization + 7;
+            int ret = jwt_decode(&jwt, token, NULL, 0);
 
-            jwt_t *jwte = NULL;
-            //int ret = jwt_decode(&jwte, authorization + 7, key, key_len);
-            int ret = jwt_decode(&jwte, authorization + 7, NULL, 0);
-            log_debug("%d", ret);
+            if (jwt != NULL) {
+                const char *val;
+                double now = current_timestamp();
 
-            if (jwte != NULL) {
-                char *dump = jwt_dump_str(jwte, 1);
-                log_debug("%d %s", ret, dump);
+                val = jwt_get_grants_json(jwt, "exp");
+                if (!val) {
+                    reply_internal_error(ses);
+                    json_decref(body);
+                    jwt_free(jwt);
+                    return 0;
+                }
+
+                const double exp = strtod(val, NULL);
+                if (!exp || now >= exp) {
+                    reply_internal_error(ses);
+                    json_decref(body);
+                    jwt_free(jwt);
+                    return 0;
+                }
+
+                val = jwt_get_grants_json(jwt, "iat");
+                if (!val) {
+                    reply_internal_error(ses);
+                    json_decref(body);
+                    jwt_free(jwt);
+                    return 0;
+                }
+                const double iat = strtod(val, NULL);
+                if (!iat || now < iat) {
+                    reply_internal_error(ses);
+                    json_decref(body);
+                    jwt_free(jwt);
+                    return 0;
+                }
+
+                val = jwt_get_grants_json(jwt, "auth_time");
+                if (!val) {
+                    reply_internal_error(ses);
+                    json_decref(body);
+                    jwt_free(jwt);
+                    return 0;
+                }
+                const double auth_time = strtod(val, NULL);
+                if (!auth_time || now >= auth_time) {
+                    reply_internal_error(ses);
+                    json_decref(body);
+                    jwt_free(jwt);
+                    return 0;
+                }
+
+                val = jwt_get_grants_json(jwt, "aud");
+                val = jwt_get_grants_json(jwt, "iss");
+                val = jwt_get_grants_json(jwt, "sub");
+                val = jwt_get_grants_json(jwt, "user_id");
+                val = jwt_get_grants_json(jwt, "uid");
             }
-            jwt_free(jwte);
         }
 
         nw_state_entry *entry = nw_state_add(state, settings.timeout, 0);
@@ -283,6 +337,7 @@ static int init_methods_handler(void)
 {
     ERR_RET_LN(add_handler("asset.list", matchengine, CMD_ASSET_LIST));
     ERR_RET_LN(add_handler("asset.summary", matchengine, CMD_ASSET_SUMMARY));
+    ERR_RET_LN(add_handler("asset.register", matchengine, CMD_ASSET_REGISTER));
 
     ERR_RET_LN(add_handler("balance.query", matchengine, CMD_BALANCE_QUERY));
     ERR_RET_LN(add_handler("balance.update", matchengine, CMD_BALANCE_UPDATE));

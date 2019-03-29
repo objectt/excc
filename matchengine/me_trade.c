@@ -62,13 +62,14 @@ market_t *get_market(const char *name)
     return NULL;
 }
 
-int update_market(market_info_t *market)
+int update_market_dict(market_info_t *market)
 {
     market_t *m = market_create(market);
     if (m == NULL)
         return -__LINE__;
 
-    dict_add(dict_market, market->name, m);
+    if (dict_add(dict_market, market->name, m)) // TODO distribute market by keys
+        return 1;
 
     return 0;
 }

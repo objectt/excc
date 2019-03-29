@@ -52,22 +52,34 @@
 typedef struct asset {
     uint32_t            id;
     char                *name;
+    char                *name_full;
     int                 prec_save;
     int                 prec_show;
-    mpd_t               *min_amount;
+    mpd_t               *tick_size;
 } asset_info_t;
 
 typedef struct market {
     uint32_t            id;
     char                *name;
+    char                *name_full;
     char                *stock;
     char                *money;
+    char                *fee;
     int                 fee_prec;
     int                 stock_prec;
     int                 money_prec;
+
     mpd_t               *min_amount;
+    //mpd_t               *max_amount;
+    mpd_t               *min_price;
+    //mpd_t               *max_price;
+    mpd_t               *min_total;
+    //mpd_t               *max_total;
+
     mpd_t               *init_price;
     mpd_t               *closing_price;
+
+    time_t              delisting_ts;
 } market_info_t;
 
 struct settings {
@@ -91,6 +103,9 @@ struct settings {
     int                 slice_keeptime;
     int                 history_thread;
     double              cache_timeout;
+
+    char                *last_price_limit;
+    char                *closing_price_limit;
 
     kafka_producer_cfg  producer;
 };
