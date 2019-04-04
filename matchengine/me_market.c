@@ -388,7 +388,12 @@ bool check_price_limit(mpd_t *cmp_price, mpd_t *price, const char *pct)
         || mpd_cmp(price, cmp_price, &mpd_ctx) == 0)
         return true;
 
-    mpd_t *limit = decimal(pct, 0); // 30%
+    mpd_t *limit = decimal(pct, 0);
+    if (mpd_cmp(limit, mpd_zero, &mpd_ctx) == 0) {
+        mpd_del(limit);
+        return true;
+    }
+
     mpd_t *range = mpd_new(&mpd_ctx);
     mpd_t *diff = mpd_new(&mpd_ctx);
     mpd_mul(range, cmp_price, limit, &mpd_ctx);
