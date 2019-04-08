@@ -198,7 +198,7 @@ static int order_put(market_t *m, order_t *order)
         mpd_t *max_fee = mpd_new(&mpd_ctx);
 
         mpd_mul(result, order->price, order->left, &mpd_ctx);
-        mpd_mul(max_fee, result, order->maker_fee, &mpd_ctx);
+        mpd_mul(max_fee, result, order->taker_fee, &mpd_ctx);
         mpd_add(result, result, max_fee, &mpd_ctx);
 
         mpd_copy(order->freeze, result, &mpd_ctx);
@@ -894,27 +894,27 @@ int market_put_limit_order(bool real, json_t **result, market_t *m, uint32_t use
     // BUY
     else {
         mpd_t *balance = balance_get(user_id, BALANCE_TYPE_AVAILABLE, m->money);
-        mpd_t *require = mpd_new(&mpd_ctx);
-        mpd_mul(require, amount, price, &mpd_ctx);
+        mpd_t *required = mpd_new(&mpd_ctx);
+        mpd_mul(required, amount, price, &mpd_ctx);
 
-        if (!balance || mpd_cmp(balance, require, &mpd_ctx) < 0) {
-            mpd_del(require);
+        if (!balance || mpd_cmp(balance, required, &mpd_ctx) < 0) {
+            mpd_del(required);
             return -1;
         }
 
         if (m->include_fee) {
             mpd_t *max_fee = mpd_new(&mpd_ctx);
-            mpd_mul(max_fee, require, taker_fee, &mpd_ctx);
-            mpd_add(require, require, max_fee, &mpd_ctx);
+            mpd_mul(max_fee, required, taker_fee, &mpd_ctx);
+            mpd_add(required, required, max_fee, &mpd_ctx);
             mpd_del(max_fee);
 
-            if (!balance || mpd_cmp(balance, require, &mpd_ctx) < 0) {
-                mpd_del(require);
+            if (!balance || mpd_cmp(balance, required, &mpd_ctx) < 0) {
+                mpd_del(required);
                 return -5;
             }
         }
 
-        mpd_del(require);
+        mpd_del(required);
     }
 
     if (mpd_cmp(amount, m->min_amount, &mpd_ctx) < 0) {
