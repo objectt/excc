@@ -251,15 +251,26 @@ json_t *get_finished_order_detail(MYSQL *conn, uint64_t order_id)
     return detail;
 }
 
-json_t *get_market_user_deals(MYSQL *conn, uint32_t user_id, const char *market, size_t offset, size_t limit)
+json_t *get_market_user_deals(MYSQL *conn, uint32_t user_id, const char *market,
+	size_t offset, size_t limit, size_t last_id)
 {
     size_t market_len = strlen(market);
     char _market[2 * market_len + 1];
     mysql_real_escape_string(conn, _market, market, market_len);
 
     sds sql = sdsempty();
-    sql = sdscatprintf(sql, "SELECT `time`, `user_id`, `deal_id`, `side`, `role`, `price`, `amount`, `deal`, `fee`, `deal_order_id`, `market` "
-            "FROM `user_deal_history_%u` where `user_id` = %u AND `market` = '%s' ORDER BY `id` DESC", user_id % HISTORY_HASH_NUM, user_id, _market);
+    sql = sdscatprintf(sql,
+	"SELECT `time`, `user_id`, `deal_id`, `side`, `role`, `price`,"
+	"`amount`, `deal`, `fee`, `deal_order_id`, `market`, `id` "
+        "FROM `user_deal_history_%u` WHERE `user_id` = %u AND `market` = '%s' ",
+	user_id % HISTORY_HASH_NUM, user_id, _market);
+
+    if (last_id) {
+	sql = sdscatprintf(sql, "AND id > '%zu' ", last_id);
+    }
+
+    sql = sdscatprintf(sql, "ORDER BY `id` DESC");
+
     if (offset) {
         sql = sdscatprintf(sql, " LIMIT %zu, %zu", offset, limit);
     } else {
@@ -286,7 +297,7 @@ json_t *get_market_user_deals(MYSQL *conn, uint32_t user_id, const char *market,
         uint32_t user_id = strtoul(row[1], NULL, 0);
         json_object_set_new(record, "user", json_integer(user_id));
         uint64_t deal_id = strtoull(row[2], NULL, 0);
-        json_object_set_new(record, "id", json_integer(deal_id));
+        json_object_set_new(record, "deal_id", json_integer(deal_id));
         int side = atoi(row[3]);
         json_object_set_new(record, "side", json_integer(side));
         int role = atoi(row[4]);
@@ -301,6 +312,8 @@ json_t *get_market_user_deals(MYSQL *conn, uint32_t user_id, const char *market,
         json_object_set_new(record, "deal_order_id", json_integer(deal_order_id));
 
         json_object_set_new(record, "market", json_string(row[10]));
+        uint64_t id = strtoull(row[11], NULL, 0);
+        json_object_set_new(record, "id", json_integer(id));
 
         json_array_append_new(records, record);
     }

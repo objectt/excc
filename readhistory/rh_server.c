@@ -243,7 +243,7 @@ invalid_argument:
 
 static int on_cmd_market_deals(MYSQL *conn, json_t *params, struct job_reply *rsp)
 {
-    if (json_array_size(params) != 4)
+    if (json_array_size(params) != 5)
         goto invalid_argument;
 
     uint32_t user_id = json_integer_value(json_array_get(params, 0));
@@ -256,8 +256,9 @@ static int on_cmd_market_deals(MYSQL *conn, json_t *params, struct job_reply *rs
     size_t limit  = json_integer_value(json_array_get(params, 3));
     if (limit == 0 || limit > QUERY_LIMIT)
         goto invalid_argument;
+    size_t last_id  = json_integer_value(json_array_get(params, 4));
 
-    json_t *records = get_market_user_deals(conn, user_id, market, offset, limit);
+    json_t *records = get_market_user_deals(conn, user_id, market, offset, limit, last_id);
     if (records == NULL) {
         rsp->code = 2;
         rsp->message = sdsnew("internal error");
